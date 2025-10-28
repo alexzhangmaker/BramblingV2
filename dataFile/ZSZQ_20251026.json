@@ -1,0 +1,46 @@
+[
+  {
+    "ticker": "600007.SS",
+    "company": "中国国贸",
+    "description": "中国国贸",
+    "holding": 3600,
+    "costPerShare": 20.66,
+    "currency": "CNY",
+    "exchange": "CN",
+    "exchangeCode": "CN",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0014.HK",
+    "company": "希慎兴业",
+    "description": "希慎兴业",
+    "holding": 1000,
+    "costPerShare": 12.63,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0883.HK",
+    "company": "中国海洋石油",
+    "description": "中国海洋石油",
+    "holding": 5000,
+    "costPerShare": 15.12,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "3690.HK",
+    "company": "美团-W",
+    "description": "美团-W",
+    "holding": 40,
+    "costPerShare": 108.347,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  }
+]

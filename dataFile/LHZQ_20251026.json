@@ -1,0 +1,35 @@
+[
+  {
+    "ticker": "0966.HK",
+    "company": "中国太平",
+    "description": "中国太平",
+    "holding": 2000,
+    "costPerShare": 17.97,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "1088.HK",
+    "company": "中国神华",
+    "description": "中国神华",
+    "holding": 2000,
+    "costPerShare": 14.75,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "1171.HK",
+    "company": "衮矿能源",
+    "description": "衮矿能源",
+    "holding": 3900,
+    "costPerShare": 3.26,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  }
+]

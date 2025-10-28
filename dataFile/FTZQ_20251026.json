@@ -1,0 +1,145 @@
+[
+  {
+    "ticker": "0823.HK",
+    "company": "领展房地产信托",
+    "description": "领展房地产信托",
+    "holding": 120,
+    "costPerShare": 60.64,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "ADC",
+    "company": "Agree Realty",
+    "description": "Agree Realty",
+    "holding": 16,
+    "costPerShare": 62.95,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "ASR",
+    "company": "Grupo Aeroport",
+    "description": "Grupo Aeroport",
+    "holding": 10,
+    "costPerShare": 278.71,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "KOF",
+    "company": "Coca-Cola FEMSA",
+    "description": "Coca-Cola FEMSA",
+    "holding": 10,
+    "costPerShare": 84.37,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "MCD",
+    "company": "麦当劳",
+    "description": "麦当劳",
+    "holding": 10,
+    "costPerShare": 295.34,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "O",
+    "company": "Realty Income",
+    "description": "Realty Income",
+    "holding": 112,
+    "costPerShare": 60.32,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "OMAB",
+    "company": "Central North",
+    "description": "Central North",
+    "holding": 10,
+    "costPerShare": 66.23,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "PAC",
+    "company": "Pacific Airport",
+    "description": "Pacific Airport",
+    "holding": 10,
+    "costPerShare": 173.17,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "SCHD",
+    "company": "SCHD",
+    "description": "SCHD",
+    "holding": 100,
+    "costPerShare": 28.26,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "ETF"
+  },
+  {
+    "ticker": "SHV",
+    "company": "SHV",
+    "description": "SHV",
+    "holding": 10,
+    "costPerShare": 110.51,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "ETF"
+  },
+  {
+    "ticker": "TLT",
+    "company": "TLT",
+    "description": "TLT",
+    "holding": 10,
+    "costPerShare": 92.75,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "ETF"
+  },
+  {
+    "ticker": "UNP",
+    "company": "联合太平洋",
+    "description": "联合太平洋",
+    "holding": 10,
+    "costPerShare": 230.42,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "VZ",
+    "company": "Verizon",
+    "description": "Verizon",
+    "holding": 10,
+    "costPerShare": 41.1,
+    "currency": "USD",
+    "exchange": "US",
+    "exchangeCode": "US",
+    "assetClass": "STK"
+  }
+]

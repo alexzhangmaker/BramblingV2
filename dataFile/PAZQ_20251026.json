@@ -1,0 +1,211 @@
+[
+  {
+    "ticker": "515080.SS",
+    "company": "中证红利ETF",
+    "description": "中证红利ETF",
+    "holding": 14600,
+    "costPerShare": 1.4755,
+    "currency": "CNY",
+    "exchange": "CN",
+    "exchangeCode": "CN",
+    "assetClass": "ETF"
+  },
+  {
+    "ticker": "515180.SS",
+    "company": "红利ETF易方达",
+    "description": "红利ETF易方达",
+    "holding": 10000,
+    "costPerShare": 1.2785,
+    "currency": "CNY",
+    "exchange": "CN",
+    "exchangeCode": "CN",
+    "assetClass": "ETF"
+  },
+  {
+    "ticker": "600007.SS",
+    "company": "中国国贸",
+    "description": "中国国贸",
+    "holding": 4000,
+    "costPerShare": 21.2494,
+    "currency": "CNY",
+    "exchange": "CN",
+    "exchangeCode": "CN",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "600674.SS",
+    "company": "川投能源",
+    "description": "川投能源",
+    "holding": 1000,
+    "costPerShare": 13.4874,
+    "currency": "CNY",
+    "exchange": "CN",
+    "exchangeCode": "CN",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "600886.SS",
+    "company": "国投电力",
+    "description": "国投电力",
+    "holding": 100,
+    "costPerShare": 14.16,
+    "currency": "CNY",
+    "exchange": "CN",
+    "exchangeCode": "CN",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "600900.SS",
+    "company": "长江电力",
+    "description": "长江电力",
+    "holding": 300,
+    "costPerShare": 27.02,
+    "currency": "CNY",
+    "exchange": "CN",
+    "exchangeCode": "CN",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "601225.SS",
+    "company": "陕西煤业",
+    "description": "陕西煤业",
+    "holding": 2000,
+    "costPerShare": 18.2,
+    "currency": "CNY",
+    "exchange": "CN",
+    "exchangeCode": "CN",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0006.HK",
+    "company": "电能实业",
+    "description": "电能实业",
+    "holding": 500,
+    "costPerShare": 48.1344,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0014.HK",
+    "company": "希慎兴业",
+    "description": "希慎兴业",
+    "holding": 1000,
+    "costPerShare": 17.396400000000003,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0135.HK",
+    "company": "昆仑能源",
+    "description": "昆仑能源",
+    "holding": 10000,
+    "costPerShare": 7.3466000000000005,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0371.HK",
+    "company": "北控水务集团",
+    "description": "北控水务集团",
+    "holding": 2000,
+    "costPerShare": 2.52444,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0696.HK",
+    "company": "中国民航信息网络",
+    "description": "中国民航信息网络",
+    "holding": 1000,
+    "costPerShare": 5.112100000000001,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0836.HK",
+    "company": "华润电力",
+    "description": "华润电力",
+    "holding": 2000,
+    "costPerShare": 17.5054,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0883.HK",
+    "company": "中国海洋石油",
+    "description": "中国海洋石油",
+    "holding": 1000,
+    "costPerShare": 10.801900000000002,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "1038.HK",
+    "company": "长江基建集团",
+    "description": "长江基建集团",
+    "holding": 500,
+    "costPerShare": 50.336200000000005,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "1088.HK",
+    "company": "中国神华",
+    "description": "中国神华",
+    "holding": 1000,
+    "costPerShare": 27.718700000000002,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "1193.HK",
+    "company": "华润燃气",
+    "description": "华润燃气",
+    "holding": 3000,
+    "costPerShare": 25.669500000000003,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "1997.HK",
+    "company": "九龙仓置业",
+    "description": "九龙仓置业",
+    "holding": 1000,
+    "costPerShare": 11.118,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "3690.HK",
+    "company": "美团-W",
+    "description": "美团-W",
+    "holding": 150,
+    "costPerShare": 126,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  }
+]

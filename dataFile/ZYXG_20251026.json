@@ -1,0 +1,90 @@
+[
+  {
+    "ticker": "0001.HK",
+    "company": "长江和记",
+    "description": "长江和记",
+    "holding": 2000,
+    "costPerShare": 52.2,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "0700.HK",
+    "company": "腾讯控股",
+    "description": "腾讯控股",
+    "holding": 200,
+    "costPerShare": 301.4,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "1336.HK",
+    "company": "新华保险",
+    "description": "新华保险",
+    "holding": 2000,
+    "costPerShare": 31.2,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "1359.HK",
+    "company": "中国信达",
+    "description": "中国信达",
+    "holding": 50000,
+    "costPerShare": 1.46,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "2202.HK",
+    "company": "万科企业",
+    "description": "万科企业",
+    "holding": 2400,
+    "costPerShare": 21.15,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "2318.HK",
+    "company": "中国平安",
+    "description": "中国平安",
+    "holding": 2000,
+    "costPerShare": 61.06,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "2601.HK",
+    "company": "中国太保",
+    "description": "中国太保",
+    "holding": 13800,
+    "costPerShare": 26,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "STK"
+  },
+  {
+    "ticker": "2800.HK",
+    "company": "盈富基金",
+    "description": "盈富基金",
+    "holding": 4500,
+    "costPerShare": 23.82,
+    "currency": "HKD",
+    "exchange": "HK",
+    "exchangeCode": "HK",
+    "assetClass": "ETF"
+  }
+]

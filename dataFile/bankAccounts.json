@@ -1,0 +1,18 @@
+{
+  "Alipay": {
+    "currency": "CNY",
+    "deposit": 200000,
+    "loan": 0
+  },
+  "ZSYH": {
+    "currency": "CNY",
+    "deposit": 200000,
+    "loan": 0
+  },
+  "ZYXG": {
+    "currency": "HKD",
+    "deposit": 100000,
+    "loan": 0
+  }
+}
+
