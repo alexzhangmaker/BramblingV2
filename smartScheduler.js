@@ -50,10 +50,43 @@ class SmartScheduler {
   constructor() {
     this.lastRun = null;
     this.isRunning = false;
-    this.dbLocker = require('./dbLocker'); // 数据库锁
+    this.dbLocker = this.initializeDBLocker(); // 初始化数据库锁
+    this.immediateMode = process.argv.includes('--immediate'); // 检查是否立即执行模式
+  }
+
+  initializeDBLocker() {
+    try {
+      return require('./dbLocker');
+    } catch (error) {
+      logger.warn('⚠️  dbLocker 模块未找到，使用内存锁替代');
+      
+      // 简单的内存锁实现
+      return {
+        locks: new Map(),
+        async acquireLock(lockName) {
+          if (this.locks.has(lockName)) {
+            logger.warn(`⚠️ 锁 "${lockName}" 已被占用，跳过执行`);
+            return false;
+          }
+          this.locks.set(lockName, true);
+          logger.info(`🔒 获取内存锁: ${lockName}`);
+          return true;
+        },
+        releaseLock(lockName) {
+          this.locks.delete(lockName);
+          logger.info(`🔓 释放内存锁: ${lockName}`);
+        }
+      };
+    }
   }
 
   shouldRun() {
+    // 如果是立即执行模式，直接返回 true
+    if (this.immediateMode) {
+      logger.info('🔴 立即执行模式激活，强制执行所有任务');
+      return true;
+    }
+
     const now = new Date();
     
     // 如果是第一次运行
@@ -83,14 +116,22 @@ class SmartScheduler {
     }
 
     if (!this.shouldRun()) {
-      return;
+      if (this.immediateMode) {
+        logger.info('🔄 立即执行模式：准备开始执行任务序列');
+      } else {
+        return;
+      }
     }
 
     this.isRunning = true;
     const runStartTime = new Date();
     
     logger.info('='.repeat(60));
-    logger.info(`🚀 开始执行每日任务序列 - ${runStartTime.toLocaleString('zh-CN')}`);
+    if (this.immediateMode) {
+      logger.info(`🚀 立即执行任务序列 - ${runStartTime.toLocaleString('zh-CN')}`);
+    } else {
+      logger.info(`🚀 开始执行每日任务序列 - ${runStartTime.toLocaleString('zh-CN')}`);
+    }
     logger.info(`📝 任务数量: ${scripts.length}`);
     logger.info('='.repeat(60));
 
@@ -98,8 +139,12 @@ class SmartScheduler {
       for (let i = 0; i < scripts.length; i++) {
         const script = scripts[i];
         
-        // 获取数据库锁
-        await this.dbLocker.acquireLock(script.name, 15 * 60 * 1000);
+        // 获取数据库锁（如果可用）
+        const lockAcquired = await this.dbLocker.acquireLock(script.name, 15 * 60 * 1000);
+        if (!lockAcquired) {
+          logger.warn(`⏭️ 跳过任务: ${script.name} (锁被占用)`);
+          continue;
+        }
         
         try {
           await this.executeScript(script);
@@ -126,11 +171,23 @@ class SmartScheduler {
       logger.info(`⏰ 完成时间: ${new Date().toLocaleString('zh-CN')}`);
       logger.info('='.repeat(60));
 
+      // 如果是立即执行模式，执行完成后退出进程
+      if (this.immediateMode) {
+        logger.info('🔴 立即执行模式完成，退出进程');
+        process.exit(0);
+      }
+
     } catch (error) {
       logger.error('💥 任务序列执行失败:', {
         error: error.message,
         stack: error.stack
       });
+      
+      // 立即执行模式下出错也退出进程
+      if (this.immediateMode) {
+        logger.error('🔴 立即执行模式出错，退出进程');
+        process.exit(1);
+      }
     } finally {
       this.isRunning = false;
     }
@@ -171,6 +228,14 @@ class SmartScheduler {
   }
 
   start() {
+    // 如果是指立即执行模式，直接运行一次然后退出
+    if (this.immediateMode) {
+      logger.info('🔴 立即执行模式启动，开始执行任务序列...');
+      this.runScripts();
+      return;
+    }
+
+    // 正常调度模式
     // 每分钟检查一次执行条件
     setInterval(() => {
       this.runScripts();
@@ -184,7 +249,37 @@ class SmartScheduler {
     logger.info('🔍 智能调度器已启动，每分钟检查执行条件');
     logger.info('⏰ 目标执行时间: 每天 8:00 AM');
     logger.info('🔄 错过执行时会自动补偿');
+    logger.info('💡 使用 --immediate 参数可以立即执行所有任务');
   }
+}
+
+// 添加命令行使用说明
+if (require.main === module) {
+  const scheduler = new SmartScheduler();
+  
+  // 显示帮助信息
+  if (process.argv.includes('--help') || process.argv.includes('-h')) {
+    console.log(`
+Smart Scheduler 使用说明:
+
+正常模式 (后台调度):
+  node smartScheduler.js
+
+立即执行模式:
+  node smartScheduler.js --immediate
+
+帮助信息:
+  node smartScheduler.js --help
+
+功能:
+  - 正常模式: 每天 8:00 AM 自动执行任务序列
+  - 立即执行模式: 立即执行所有任务，完成后退出
+  - 错过执行时会自动补偿执行
+    `);
+    process.exit(0);
+  }
+
+  scheduler.start();
 }
 
 module.exports = SmartScheduler;

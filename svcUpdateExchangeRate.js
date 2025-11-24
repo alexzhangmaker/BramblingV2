@@ -394,6 +394,8 @@ async function main() {
     if (process.argv.includes('--immediate')) {
       console.log('⚡ 立即执行汇率更新...');
       await exchangeRateService.executeImmediately();
+      console.log('✅ 立即执行完成，退出进程');
+      process.exit(0); // 立即执行完成后退出
     }
     
     // 如果指定了查询特定汇率

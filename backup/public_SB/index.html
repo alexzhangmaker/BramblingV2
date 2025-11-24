@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>交易记录管理系统</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>📊 交易记录管理系统</h1>
+            <div class="auth-section">
+                <div id="login-form">
+                    <input type="email" id="email" placeholder="Gmail邮箱" value="alexszhang@gmail.com">
+                    <input type="password" id="password" placeholder="密码">
+                    <button onclick="login()">登录</button>
+                </div>
+                <div id="user-info" style="display: none;">
+                    <span id="user-email"></span>
+                    <button onclick="logout()">退出</button>
+                </div>
+            </div>
+        </header>
+
+        <div id="loading" class="loading" style="display: none;">
+            加载中...
+        </div>
+
+        <div id="content" style="display: none;">
+            <!-- 控制面板 -->
+            <div class="control-panel">
+                <button onclick="loadDealLogs()">刷新数据</button>
+                <button onclick="showAddForm()">添加记录</button>
+                <button onclick="exportToCSV()">导出CSV</button>
+                <div class="filters">
+                    <select id="filter-account" onchange="applyFilters()">
+                        <option value="">所有账户</option>
+                    </select>
+                    <select id="filter-action" onchange="applyFilters()">
+                        <option value="">所有操作</option>
+                        <option value="BUY">买入</option>
+                        <option value="SELL">卖出</option>
+                    </select>
+                    <select id="filter-cleared" onchange="applyFilters()">
+                        <option value="">所有状态</option>
+                        <option value="true">已清算</option>
+                        <option value="false">未清算</option>
+                    </select>
+                    <input type="text" id="filter-ticker" placeholder="搜索代码" oninput="applyFilters()">
+                </div>
+            </div>
+
+            <!-- 统计信息 -->
+            <div id="stats" class="stats"></div>
+
+            <!-- 添加记录表单 -->
+            <div id="add-form" class="add-form" style="display: none;">
+                <h3>添加交易记录</h3>
+                <div class="form-grid">
+                    <input type="text" id="add-account" placeholder="账户">
+                    <select id="add-action">
+                        <option value="BUY">买入</option>
+                        <option value="SELL">卖出</option>
+                    </select>
+                    <input type="text" id="add-ticker" placeholder="代码">
+                    <input type="number" id="add-price" placeholder="价格" step="0.01">
+                    <input type="number" id="add-quantity" placeholder="数量">
+                    <input type="text" id="add-market" placeholder="市场">
+                    <input type="date" id="add-date">
+                    <label>
+                        <input type="checkbox" id="add-cleared"> 已清算
+                    </label>
+                </div>
+                <div class="form-actions">
+                    <button onclick="addDealLog()">添加</button>
+                    <button onclick="hideAddForm()">取消</button>
+                </div>
+            </div>
+
+            <!-- 数据表格 -->
+            <div class="table-container">
+                <table id="deal-logs-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>账户</th>
+                            <th>操作</th>
+                            <th>代码</th>
+                            <th>价格</th>
+                            <th>数量</th>
+                            <th>市场</th>
+                            <th>日期</th>
+                            <th>状态</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody id="deal-logs-body">
+                    </tbody>
+                </table>
+            </div>
+
+            <!-- 分页控件 -->
+            <div class="pagination">
+                <button id="prev-page" onclick="changePage(-1)">上一页</button>
+                <span id="page-info">第 1 页</span>
+                <button id="next-page" onclick="changePage(1)">下一页</button>
+            </div>
+        </div>
+
+        <div id="error-message" class="error" style="display: none;"></div>
+    </div>
+
+    <script src="config.js"></script>
+    <script src="app.js"></script>
+</body>
+</html>

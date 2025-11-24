@@ -676,6 +676,8 @@ async function main() {
     } else if (process.argv.includes('--immediate')) {
       console.log('⚡ 立即执行资产负债表计算...');
       await balanceSheetService.executeBalanceSheetImmediately();
+      console.log('✅ 立即执行完成，退出进程');
+      process.exit(0); // 立即执行完成后退出
     } else if (process.argv.includes('--history')) {
       const days = process.argv[process.argv.indexOf('--history') + 1] || 30;
       await balanceSheetService.getHistoricalBalanceSheet(parseInt(days));

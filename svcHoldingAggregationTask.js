@@ -742,6 +742,8 @@ async function main() {
     if (process.argv.includes('--immediate')) {
       console.log('⚡ 立即执行汇总任务...');
       await aggregationTask.executeImmediately();
+      console.log('✅ 立即执行完成，退出进程');
+      process.exit(0); // 立即执行完成后退出
     }
     
     console.log('✅ 汇总任务服务运行中...');

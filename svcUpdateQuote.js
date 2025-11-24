@@ -407,14 +407,12 @@ async function main() {
   });
 
   try {
-    // 启动定时任务（默认每5分钟执行一次）
-    const cronExpression = process.env.QUOTE_UPDATE_CRON || '0 */5 * * * *';
-    quoteService.startScheduledTask(cronExpression);
-    
     // 如果指定了立即执行参数
     if (process.argv.includes('--immediate')) {
       console.log('⚡ 立即执行报价更新...');
       await quoteService.executeImmediately();
+      console.log('✅ 立即执行完成，退出进程');
+      process.exit(0); // 立即执行完成后退出
     }
     
     // 如果指定了单个ticker查询
@@ -441,6 +439,10 @@ async function main() {
       });
       process.exit(0);
     }
+    
+    // 如果没有特殊参数，启动定时任务（默认每5分钟执行一次）
+    const cronExpression = process.env.QUOTE_UPDATE_CRON || '0 */5 * * * *';
+    quoteService.startScheduledTask(cronExpression);
     
     console.log('✅ 报价更新服务运行中...');
     console.log('💡 使用 Ctrl+C 停止服务');
