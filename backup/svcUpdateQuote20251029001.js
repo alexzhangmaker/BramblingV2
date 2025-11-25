@@ -1,7 +1,7 @@
 // svcUpdateQuote.js (修复版本)
 const duckdb = require('duckdb');
 const nodeCron = require('node-cron');
-const APIModuleYahoo = require("./API_YFinance") ;
+const APIModuleYahoo = require("../API_YFinance") ;
 
 const duckDbFilePath = './portfolioData.duckdb';
 

@@ -105,9 +105,25 @@
                         <div class="section-controls">
                             <select id="account-select" class="form-select">
                                 <option value="">选择账户...</option>
-                            </select>
-                            <button id="refresh-holdings" class="btn btn-primary">🔄 刷新持仓</button>
-                            <button id="add-holding" class="btn btn-success">➕ 新建持仓</button>
+                            </select>     
+                            
+                            <!-- 搜索和筛选控件 -->
+                            <div class="filter-controls-group">
+                                <input type="text" id="holdings-search" class="form-input" placeholder="搜索代码或公司..." style="width: 200px;">
+                                <select id="exchange-filter" class="form-select" style="width: 120px;">
+                                    <option value="">全部交易所</option>
+                                    <option value="CN">中国</option>
+                                    <option value="HK">香港</option>
+                                    <option value="US">美国</option>
+                                    <option value="TSE">加拿大</option>
+                                     <option value="LSE">英国</option>
+                                </select>
+                            </div>
+                            
+                            <button id="refresh-holdings" class="btn btn-primary" style="width:220px">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="#000000"><g fill="none" stroke="#000000" stroke-width="1.5"><circle cx="12" cy="12" r="10"/><path stroke-linecap="round" stroke-linejoin="round" d="M16.583 9.667C15.81 8.097 14.043 7 11.988 7C9.388 7 7.25 8.754 7 11"/><path stroke-linecap="round" stroke-linejoin="round" d="M14.494 9.722H16.4a.6.6 0 0 0 .6-.6V7.5m-9.583 6.167C8.191 15.629 9.957 17 12.012 17c2.6 0 4.736-2.193 4.988-5"/><path stroke-linecap="round" stroke-linejoin="round" d="M9.506 13.622H7.6a.6.6 0 0 0-.6.6V16.4"/></g></svg> 刷新持仓
+                            </button>
+                            <button id="add-holding" class="btn btn-success" style="width:220px">➕ 新建持仓</button>
                         </div>
                     </div>
                     <div id="holdings-content" class="table-container">

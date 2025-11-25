@@ -646,3 +646,136 @@ datalist {
         font-size: 12px;
     }
 }
+
+
+/* 搜索和筛选控件样式 */
+.filter-controls-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.filter-controls-group .form-input,
+.filter-controls-group .form-select {
+    height: 38px;
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.filter-controls-group .form-input:focus,
+.filter-controls-group .form-select:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* 搜索结果高亮 */
+.highlight {
+    background-color: #fff3cd;
+    padding: 2px 4px;
+    border-radius: 2px;
+    font-weight: bold;
+}
+
+/* 空状态样式 */
+.holdings-table tbody tr td[colspan] {
+    text-align: center;
+    color: #6c757d;
+    font-style: italic;
+    padding: 20px;
+}
+
+/* 响应式调整 */
+@media (max-width: 1024px) {
+    .section-controls {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .filter-controls-group {
+        order: 1;
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .filter-controls-group .form-input {
+        flex: 1;
+        min-width: 150px;
+    }
+    
+    .filter-controls-group .form-select {
+        width: auto;
+    }
+}
+
+@media (max-width: 768px) {
+    .section-controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+    
+    .filter-controls-group {
+        flex-direction: column;
+        gap: 8px;
+    }
+    
+    .filter-controls-group .form-input,
+    .filter-controls-group .form-select {
+        width: 100%;
+    }
+    
+    #account-select,
+    #refresh-holdings,
+    #add-holding {
+        width: 100% !important;
+    }
+}
+
+
+/* 搜索和筛选控件样式 */
+.filter-controls-group {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.filter-controls-group .form-input,
+.filter-controls-group .form-select {
+    height: 38px;
+    padding: 6px 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    font-size: 14px;
+}
+
+.filter-controls-group .form-input:focus,
+.filter-controls-group .form-select:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 2px rgba(52, 152, 219, 0.2);
+}
+
+/* 响应式调整 */
+@media (max-width: 1024px) {
+    .section-controls {
+        flex-wrap: wrap;
+        gap: 10px;
+    }
+    
+    .filter-controls-group {
+        order: 1;
+        width: 100%;
+        justify-content: flex-start;
+    }
+    
+    .filter-controls-group .form-input {
+        flex: 1;
+        min-width: 150px;
+    }
+    
+    .filter-controls-group .form-select {
+        width: auto;
+    }
+}

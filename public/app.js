@@ -9,6 +9,9 @@ class FirebaseAdminApp {
         this.dealsData = {};  // 存储交易记录数据
         this.initEventListeners();
         this.checkAuthState();
+
+        this.currentHoldingsData = {}; // 存储当前显示的持仓数据
+        this.filteredHoldingsData = {}; // 存储过滤后的持仓数据
     }
 
     initEventListeners() {
@@ -53,7 +56,36 @@ class FirebaseAdminApp {
         document.getElementById('deal-ticker').addEventListener('change', (e) => this.handleTickerChange(e.target.value));
 
         // 在 initEventListeners 方法中添加
-        document.getElementById('add-holding').addEventListener('click', () => this.showAddHolding());
+        //document.getElementById('add-holding').addEventListener('click', () => this.showAddHolding());
+
+        // 在 initEventListeners 方法中添加搜索和筛选事件监听
+        document.getElementById('holdings-search').addEventListener('input', (e) => this.filterHoldings(e.target.value));
+        document.getElementById('exchange-filter').addEventListener('change', (e) => this.filterHoldings());
+
+        // 持仓管理
+        document.getElementById('account-select').addEventListener('change', (e) => this.loadHoldings(e.target.value));
+        document.getElementById('refresh-holdings').addEventListener('click', () => {
+            const selectedAccount = document.getElementById('account-select').value;
+            if (selectedAccount) this.loadHoldings(selectedAccount);
+        });
+        
+        // 确保 add-holding 按钮存在后再添加事件监听
+        const addHoldingBtn = document.getElementById('add-holding');
+        if (addHoldingBtn) {
+            addHoldingBtn.addEventListener('click', () => this.showAddHolding());
+        }
+
+        // 搜索和筛选事件监听
+        const holdingsSearch = document.getElementById('holdings-search');
+        const exchangeFilter = document.getElementById('exchange-filter');
+        
+        if (holdingsSearch) {
+            holdingsSearch.addEventListener('input', (e) => this.filterHoldings(e.target.value));
+        }
+        
+        if (exchangeFilter) {
+            exchangeFilter.addEventListener('change', (e) => this.filterHoldings());
+        }
     }
 
 
@@ -68,6 +100,7 @@ showAddHolding() {
     this.addNewHoldingRow(selectedAccount);
 }
 
+// 修改 addNewHoldingRow 方法，为公司名称输入框添加特定的类名
 addNewHoldingRow(accountId) {
     const holdingsContent = document.getElementById('holdings-content');
     
@@ -89,7 +122,7 @@ addNewHoldingRow(accountId) {
             <input type="text" class="editable-input ticker-input" placeholder="证券代码" required>
         </td>
         <td>
-            <input type="text" class="editable-input" placeholder="公司名称">
+            <input type="text" class="editable-input company-input" placeholder="公司名称">
         </td>
         <td>
             <input type="number" class="editable-input holding-quantity" min="0" step="1" value="0" required>
@@ -106,8 +139,7 @@ addNewHoldingRow(accountId) {
         </td>
         <td>
             <select class="editable-input exchange-select">
-                <option value="SS">上海</option>
-                <option value="SZ">深圳</option>
+                <option value="CN">中国</option>
                 <option value="HK">香港</option>
                 <option value="US">美国</option>
             </select>
@@ -120,20 +152,42 @@ addNewHoldingRow(accountId) {
     
     tbody.insertBefore(newRow, tbody.firstChild);
     
-    // 添加事件监听
-    newRow.querySelector('.save-new-holding').addEventListener('click', () => this.saveNewHolding(accountId, newRow));
-    newRow.querySelector('.cancel-new-holding').addEventListener('click', () => newRow.remove());
+    // 添加事件监听 - 使用更安全的方式
+    const saveButton = newRow.querySelector('.save-new-holding');
+    const cancelButton = newRow.querySelector('.cancel-new-holding');
+    
+    if (saveButton) {
+        saveButton.addEventListener('click', () => {
+            // 再次检查 row 是否仍然存在
+            if (document.body.contains(newRow)) {
+                this.saveNewHolding(accountId, newRow);
+            } else {
+                this.showMessage('保存失败：持仓行已被删除', 'error');
+            }
+        });
+    }
+    
+    if (cancelButton) {
+        cancelButton.addEventListener('click', () => {
+            if (document.body.contains(newRow)) {
+                newRow.remove();
+            }
+        });
+    }
     
     // 添加回车保存功能
     newRow.querySelectorAll('.editable-input').forEach(input => {
         input.addEventListener('keypress', (e) => {
             if (e.key === 'Enter') {
-                this.saveNewHolding(accountId, newRow);
+                if (document.body.contains(newRow)) {
+                    this.saveNewHolding(accountId, newRow);
+                }
             }
         });
     });
 }
 
+/*
 async saveNewHolding(accountId, row) {
     const ticker = row.querySelector('.ticker-input').value.trim();
     const company = row.querySelector('.editable-input:nth-child(2)').value.trim();
@@ -181,7 +235,7 @@ async saveNewHolding(accountId, row) {
         this.showMessage(`保存失败: ${error.message}`, 'error');
     }
 }
-
+*/
 
     // 认证状态检查
     checkAuthState() {
@@ -1204,6 +1258,8 @@ async saveNewHolding(accountId, row) {
         }
     }
     */
+
+    /*
    // 修改 loadHoldings 方法以支持编辑功能
 async loadHoldings(accountId) {
     try {
@@ -1262,6 +1318,215 @@ async loadHoldings(accountId) {
         this.initHoldingEditListeners();
     } catch (error) {
         this.showMessage(`加载持仓数据失败: ${error.message}`, 'error');
+    }
+}
+*/
+
+// 修改 loadHoldings 方法以保存原始数据
+async loadHoldings(accountId) {
+    try {
+        const accountData = this.accountsData[accountId];
+        if (!accountData || !accountData.holdings) {
+            document.getElementById('holdings-content').innerHTML = '<p>该账户暂无持仓数据</p>';
+            this.currentHoldingsData = {};
+            this.filteredHoldingsData = {};
+            return;
+        }
+
+        this.currentHoldingsData = accountData.holdings;
+        this.filteredHoldingsData = { ...this.currentHoldingsData };
+        
+        this.renderHoldingsTable(accountId, this.filteredHoldingsData);
+        
+    } catch (error) {
+        this.showMessage(`加载持仓数据失败: ${error.message}`, 'error');
+    }
+}
+
+
+// 分离渲染表格的方法
+renderHoldingsTable(accountId, holdingsData) {
+    let html = `
+        <h3>账户 ${accountId} 的持仓</h3>
+        <table class="data-table holdings-table">
+            <thead>
+                <tr>
+                    <th>代码</th>
+                    <th>公司</th>
+                    <th>持仓数量</th>
+                    <th>成本价</th>
+                    <th>货币</th>
+                    <th>交易所</th>
+                    <th>操作</th>
+                </tr>
+            </thead>
+            <tbody>
+    `;
+
+    if (Object.keys(holdingsData).length === 0) {
+        html += `
+            <tr>
+                <td colspan="7" style="text-align: center;">暂无持仓数据</td>
+            </tr>
+        `;
+    } else {
+        Object.entries(holdingsData).forEach(([tickerKey, holding]) => {
+            html += `
+                <tr data-holding-key="${tickerKey}" data-account-id="${accountId}">
+                    <td class="ticker-cell">${holding.ticker || tickerKey}</td>
+                    <td class="company-cell">${holding.company || 'N/A'}</td>
+                    <td class="quantity-cell editable-cell">
+                        <span class="display-value">${holding.holding || 0}</span>
+                        <span class="edit-icon">✏️</span>
+                        <input type="number" class="editable-input hidden" value="${holding.holding || 0}" min="0" step="1">
+                    </td>
+                    <td class="cost-cell editable-cell">
+                        <span class="display-value">${holding.costPerShare ? holding.costPerShare.toFixed(3) : '0.000'}</span>
+                        <span class="edit-icon">✏️</span>
+                        <input type="number" class="editable-input hidden" value="${holding.costPerShare || 0}" min="0" step="0.001">
+                    </td>
+                    <td>${holding.currency || 'N/A'}</td>
+                    <td>${holding.exchangeCode || 'N/A'}</td>
+                    <td>
+                        <button class="btn btn-danger delete-holding" onclick="app.deleteHolding('${accountId}', '${tickerKey}')">删除</button>
+                    </td>
+                </tr>
+            `;
+        });
+    }
+
+    html += '</tbody></table>';
+    document.getElementById('holdings-content').innerHTML = html;
+    
+    // 初始化编辑功能
+    this.initHoldingEditListeners();
+}
+
+// 添加搜索和筛选方法
+filterHoldings(searchTerm = null) {
+    const selectedAccount = document.getElementById('account-select').value;
+    if (!selectedAccount) return;
+
+    // 获取搜索词和筛选条件
+    if (searchTerm === null) {
+        searchTerm = document.getElementById('holdings-search').value.toLowerCase();
+    }
+    const exchangeFilter = document.getElementById('exchange-filter').value;
+
+    // 过滤数据
+    this.filteredHoldingsData = {};
+    
+    Object.entries(this.currentHoldingsData).forEach(([tickerKey, holding]) => {
+        const ticker = (holding.ticker || tickerKey).toLowerCase();
+        const company = (holding.company || '').toLowerCase();
+        const exchange = holding.exchangeCode || '';
+        
+        // 搜索条件匹配
+        const searchMatch = !searchTerm || 
+            ticker.includes(searchTerm) || 
+            company.includes(searchTerm);
+        
+        // 交易所筛选匹配
+        const exchangeMatch = !exchangeFilter || exchange === exchangeFilter;
+        
+        if (searchMatch && exchangeMatch) {
+            this.filteredHoldingsData[tickerKey] = holding;
+        }
+    });
+
+    // 重新渲染表格
+    this.renderHoldingsTable(selectedAccount, this.filteredHoldingsData);
+}
+
+// 修改 deleteHolding 方法以更新当前数据
+async deleteHolding(accountId, holdingKey) {
+    if (!confirm(`确定要删除持仓 ${holdingKey} 吗？此操作不可撤销。`)) {
+        return;
+    }
+    
+    try {
+        await this.db.ref(`accounts/${accountId}/holdings/${holdingKey}`).remove();
+        this.showMessage('✅ 持仓删除成功', 'success');
+        
+        // 更新当前数据
+        delete this.currentHoldingsData[holdingKey];
+        delete this.filteredHoldingsData[holdingKey];
+        
+        // 重新加载持仓数据
+        this.loadHoldings(accountId);
+    } catch (error) {
+        this.showMessage(`删除失败: ${error.message}`, 'error');
+    }
+}
+
+// 修改 saveNewHolding 方法，添加空值检查
+async saveNewHolding(accountId, row) {
+    // 检查 row 是否存在
+    if (!row || !document.body.contains(row)) {
+        this.showMessage('保存失败：持仓行数据无效', 'error');
+        return;
+    }
+    
+    // 获取输入元素，添加空值检查
+    const tickerInput = row.querySelector('.ticker-input');
+    const companyInput = row.querySelector('.company-input');
+    const quantityInput = row.querySelector('.holding-quantity');
+    const costInput = row.querySelector('.cost-input');
+    const currencySelect = row.querySelector('.currency-select');
+    const exchangeSelect = row.querySelector('.exchange-select');
+    
+    // 检查所有必需元素是否存在
+    if (!tickerInput || !quantityInput || !costInput || !currencySelect || !exchangeSelect) {
+        this.showMessage('保存失败：表单数据不完整', 'error');
+        return;
+    }
+    
+    const ticker = tickerInput.value.trim();
+    const company = companyInput ? companyInput.value.trim() : '';
+    const quantity = parseInt(quantityInput.value);
+    const costPerShare = parseFloat(costInput.value);
+    const currency = currencySelect.value;
+    const exchange = exchangeSelect.value;
+    
+    // 数据验证
+    if (!ticker) {
+        this.showMessage('请输入证券代码', 'error');
+        return;
+    }
+    
+    if (isNaN(quantity) || quantity < 0) {
+        this.showMessage('持仓数量必须为非负整数', 'error');
+        return;
+    }
+    
+    if (isNaN(costPerShare) || costPerShare < 0) {
+        this.showMessage('成本价必须为非负数', 'error');
+        return;
+    }
+    
+    try {
+        const holdingKey = this.generateHoldingKey(ticker, exchange);
+        const holdingData = {
+            ticker: ticker,
+            company: company,
+            holding: quantity,
+            costPerShare: parseFloat(costPerShare.toFixed(3)),
+            currency: currency,
+            exchange: exchange,
+            exchangeCode: exchange,
+            assetClass: 'STK',
+            description: company,
+            lastUpdated: new Date().toISOString(),
+            createdBy: this.currentUser.email
+        };
+        
+        await this.db.ref(`accounts/${accountId}/holdings/${holdingKey}`).set(holdingData);
+        this.showMessage('✅ 持仓添加成功', 'success');
+        
+        // 重新加载持仓数据以更新当前数据
+        this.loadHoldings(accountId);
+    } catch (error) {
+        this.showMessage(`保存失败: ${error.message}`, 'error');
     }
 }
 
@@ -1388,6 +1653,7 @@ cancelEditing(input) {
     displayValue.classList.remove('hidden');
 }
 
+/*
 async deleteHolding(accountId, holdingKey) {
     if (!confirm(`确定要删除持仓 ${holdingKey} 吗？此操作不可撤销。`)) {
         return;
@@ -1401,6 +1667,7 @@ async deleteHolding(accountId, holdingKey) {
         this.showMessage(`删除失败: ${error.message}`, 'error');
     }
 }
+    */
 
     // 显示添加账户模态框
     showAddAccountModal() {
