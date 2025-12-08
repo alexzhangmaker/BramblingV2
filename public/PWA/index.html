@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Outpost PWA</title>
+    <link rel="manifest" href="./manifest.json">
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+
+    <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-sm text-center">
+        <div class="mb-4">
+            <img src="https://cdn-icons-png.flaticon.com/512/1041/1041888.png" class="w-16 h-16 mx-auto" alt="Icon">
+        </div>
+        <h1 class="text-2xl font-bold text-gray-800 mb-2">Outpost 通知测试</h1>
+        <p class="text-sm text-gray-500 mb-6">PWA FCM 接收端演示</p>
+
+        <div id="status-box" class="bg-gray-50 p-3 rounded-lg text-xs text-left font-mono text-gray-600 mb-4 break-all h-32 overflow-y-auto border border-gray-200">
+            等待操作...
+        </div>
+
+        <button id="enable-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md">
+            开启通知权限
+        </button>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
+        import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAXlqDll3KTeuwuE7bIpo6fMepouHHhILs",
+            authDomain: "outpostmessageproxy.firebaseapp.com",
+            projectId: "outpostmessageproxy",
+            storageBucket: "outpostmessageproxy.firebasestorage.app",
+            messagingSenderId: "788806511022",
+            appId: "1:788806511022:web:0ccd2bb10d8eee8638403f"
+        };
+
+        // 初始化 Firebase
+        const app = initializeApp(firebaseConfig);
+        const messaging = getMessaging(app);
+
+        // UI 元素
+        const btn = document.getElementById('enable-btn');
+        const statusBox = document.getElementById('status-box');
+        
+        const API_URL = "https://us-central1-outpostmessageproxy.cloudfunctions.net/registerFcmToken";
+        const VAPID_KEY = "BI9komfQ5UJlo0MDBb2d_LwQKAsBv1IbZGWen2Vvp6dFK0bGi9xgraotcKT74PgiQGgOX-kaT200yfGNkEU8vR4"; 
+
+        // 日志辅助函数
+        function log(msg) {
+            statusBox.innerHTML += `> ${msg}<br/>`;
+            statusBox.scrollTop = statusBox.scrollHeight;
+            console.log(msg);
+        }
+
+        // 上报后端
+        async function sendTokenToBackend(token) {
+            log('正在上报服务器...');
+            
+            const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+            const platform = isIOS ? 'ios_pwa' : 'android_pwa';
+            const userId = "demo_user_" + Math.floor(Math.random() * 1000); 
+
+            try {
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        userId: userId,
+                        token: token,
+                        platform: platform
+                    })
+                });
+                
+                const result = await response.json();
+                if(response.ok) {
+                    log(`✅ 上报成功! User: ${userId}`);
+                    btn.innerText = "已开启";
+                    btn.disabled = true;
+                    btn.classList.add('bg-green-500');
+                } else {
+                    log('上报失败: ' + JSON.stringify(result));
+                }
+            } catch (e) {
+                log('网络请求错误: ' + e);
+            }
+        }
+
+        // 封装一个主函数来处理流程
+        async function initMessaging() {
+            try {
+                // Step 1: 显式注册 Service Worker (使用相对路径 ./)
+                // scope: './' 确保它只控制当前目录下的页面
+                const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' });
+                log('Service Worker 注册成功，Scope为: ' + registration.scope);
+
+                // 按钮点击事件
+                btn.addEventListener('click', async () => {
+                    log('正在请求通知权限...');
+                    
+                    try {
+                        const permission = await Notification.requestPermission();
+                        if (permission !== 'granted') {
+                            log('权限被拒绝');
+                            return;
+                        }
+                        log('权限已获取，正在获取 Token...');
+
+                        // Step 2: 关键！将 registration 传入 getToken
+                        const token = await getToken(messaging, { 
+                            vapidKey: VAPID_KEY,
+                            serviceWorkerRegistration: registration 
+                        });
+
+                        if (token) {
+                            log('获取 Token 成功!');
+                            await sendTokenToBackend(token);
+                        } else {
+                            log('未获取到 Token');
+                        }
+
+                    } catch (err) {
+                        log('获取 Token 流程错误: ' + err);
+                        console.error(err);
+                    }
+                });
+
+                // 监听前台消息
+                onMessage(messaging, (payload) => {
+                    log('收到前台消息: ' + payload.notification.title);
+                    alert(`新消息: ${payload.notification.title}\n${payload.notification.body}`);
+                });
+
+            } catch (err) {
+                log('Service Worker 注册失败: ' + err);
+                console.error(err);
+            }
+        }
+
+        // 启动
+        if ('serviceWorker' in navigator) {
+           initMessaging();
+        }
+    </script>
+</body>
+</html>

@@ -1,7 +1,7 @@
 {
   "name": "Outpost PWA Demo",
   "short_name": "BramblingPWA",
-  "start_url": "/indexPWA.html",
+  "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#3b82f6",
