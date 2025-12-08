@@ -1,0 +1,20 @@
+{
+  "name": "Outpost PWA Demo",
+  "short_name": "BramblingPWA",
+  "start_url": "/indexPWA.html",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#3b82f6",
+  "icons": [
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1041/1041888.png", 
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "https://cdn-icons-png.flaticon.com/512/1041/1041888.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
