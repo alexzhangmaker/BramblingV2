@@ -3,33 +3,39 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Outpost PWA</title>
+    <title>Outpost Inbox</title>
     <link rel="manifest" href="./manifest.json">
     <script src="https://cdn.tailwindcss.com"></script>
 </head>
-<body class="bg-gray-100 min-h-screen flex flex-col items-center justify-center p-4">
+<body class="bg-gray-50 min-h-screen flex flex-col max-w-md mx-auto shadow-xl">
 
-    <div class="bg-white p-6 rounded-xl shadow-lg w-full max-w-sm text-center">
-        <div class="mb-4">
-            <img src="https://cdn-icons-png.flaticon.com/512/1041/1041888.png" class="w-16 h-16 mx-auto" alt="Icon">
-        </div>
-        <h1 class="text-2xl font-bold text-gray-800 mb-2">Outpost 通知测试</h1>
-        <p class="text-sm text-gray-500 mb-6">PWA FCM 接收端演示</p>
+    <div class="bg-blue-600 text-white p-4 sticky top-0 z-10 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold flex items-center">
+            <img src="https://cdn-icons-png.flaticon.com/512/1041/1041888.png" class="w-8 h-8 mr-2 bg-white rounded-full p-1">
+            消息中心
+        </h1>
+        <button id="refresh-btn" class="text-sm bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded transition">刷新</button>
+    </div>
 
-        <div id="status-box" class="bg-gray-50 p-3 rounded-lg text-xs text-left font-mono text-gray-600 mb-4 break-all h-32 overflow-y-auto border border-gray-200">
-            等待操作...
-        </div>
-
-        <button id="enable-btn" class="w-full bg-blue-500 hover:bg-blue-600 text-white font-semibold py-3 px-4 rounded-lg transition duration-200 shadow-md">
-            开启通知权限
+    <div class="p-4 bg-white border-b">
+        <div id="status-box" class="text-xs text-gray-400 font-mono mb-2 truncate">初始化中...</div>
+        <button id="enable-btn" class="w-full bg-blue-100 text-blue-700 font-semibold py-2 rounded-lg hover:bg-blue-200 transition mb-2">
+            🔔 开启推送通知
         </button>
-        <div id="chat-box" class="w-full max-w-sm mt-4 space-y-2"></div>
+        <button id="clear-btn" class="w-full text-gray-500 text-sm py-1 hover:text-red-500 transition">
+            清空所有消息
+        </button>
+    </div>
+
+    <div id="inbox-list" class="flex-1 p-4 space-y-3 overflow-y-auto">
+        <div class="text-center text-gray-400 py-10">暂无消息</div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
         import { getMessaging, getToken, onMessage } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-messaging.js";
 
+        // --- 配置 ---
         const firebaseConfig = {
             apiKey: "AIzaSyAXlqDll3KTeuwuE7bIpo6fMepouHHhILs",
             authDomain: "outpostmessageproxy.firebaseapp.com",
@@ -38,129 +44,177 @@
             messagingSenderId: "788806511022",
             appId: "1:788806511022:web:0ccd2bb10d8eee8638403f"
         };
+        const VAPID_KEY = "BI9komfQ5UJlo0MDBb2d_LwQKAsBv1IbZGWen2Vvp6dFK0bGi9xgraotcKT74PgiQGgOX-kaT200yfGNkEU8vR4";
+        const API_URL = "https://us-central1-outpostmessageproxy.cloudfunctions.net/registerFcmToken";
 
-        // 初始化 Firebase
         const app = initializeApp(firebaseConfig);
         const messaging = getMessaging(app);
 
-        // UI 元素
-        const btn = document.getElementById('enable-btn');
+        // --- IndexedDB 工具 ---
+        const DB_NAME = 'OutpostPWA_DB';
+        const STORE_NAME = 'inbox';
+
+        const dbHelper = {
+            open: () => {
+                return new Promise((resolve, reject) => {
+                    const req = indexedDB.open(DB_NAME, 1);
+                    req.onupgradeneeded = (e) => {
+                        const db = e.target.result;
+                        if (!db.objectStoreNames.contains(STORE_NAME)) {
+                            db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                        }
+                    };
+                    req.onsuccess = (e) => resolve(e.target.result);
+                    req.onerror = (e) => reject(e);
+                });
+            },
+            add: async (msg) => {
+                const db = await dbHelper.open();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readwrite');
+                    tx.objectStore(STORE_NAME).add(msg);
+                    tx.oncomplete = () => resolve();
+                    tx.onerror = (e) => reject(e);
+                });
+            },
+            getAll: async () => {
+                const db = await dbHelper.open();
+                return new Promise((resolve, reject) => {
+                    const tx = db.transaction(STORE_NAME, 'readonly');
+                    const req = tx.objectStore(STORE_NAME).getAll();
+                    req.onsuccess = () => resolve(req.result);
+                    req.onerror = (e) => reject(e);
+                });
+            },
+            clear: async () => {
+                const db = await dbHelper.open();
+                const tx = db.transaction(STORE_NAME, 'readwrite');
+                tx.objectStore(STORE_NAME).clear();
+                renderInbox(); // 清空后刷新UI
+            }
+        };
+
+        // --- UI 逻辑 ---
+        const inboxList = document.getElementById('inbox-list');
         const statusBox = document.getElementById('status-box');
         
-        const API_URL = "https://us-central1-outpostmessageproxy.cloudfunctions.net/registerFcmToken";
-        const VAPID_KEY = "BI9komfQ5UJlo0MDBb2d_LwQKAsBv1IbZGWen2Vvp6dFK0bGi9xgraotcKT74PgiQGgOX-kaT200yfGNkEU8vR4"; 
-
-        // 日志辅助函数
         function log(msg) {
-            statusBox.innerHTML += `> ${msg}<br/>`;
-            statusBox.scrollTop = statusBox.scrollHeight;
             console.log(msg);
+            statusBox.textContent = msg;
         }
 
-        // 上报后端
-        async function sendTokenToBackend(token) {
-            log('正在上报服务器...');
+        function formatTime(ts) {
+            return new Date(ts).toLocaleString('zh-CN', { hour12: false, month: '2-digit', day: '2-digit', hour: '2-digit', minute:'2-digit' });
+        }
+
+        async function renderInbox() {
+            const messages = await dbHelper.getAll();
+            // 按时间倒序排列（最新的在上面）
+            messages.sort((a, b) => b.timestamp - a.timestamp);
+
+            inboxList.innerHTML = '';
             
+            if (messages.length === 0) {
+                inboxList.innerHTML = '<div class="text-center text-gray-400 py-10 flex flex-col items-center"><span class="text-4xl mb-2">📭</span>暂无消息</div>';
+                return;
+            }
+
+            messages.forEach(msg => {
+                const card = document.createElement('div');
+                card.className = "bg-white p-4 rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer active:bg-gray-50";
+                card.onclick = () => {
+                   if(msg.url && msg.url !== '/') window.location.href = msg.url;
+                };
+
+                card.innerHTML = `
+                    <div class="flex justify-between items-start mb-1">
+                        <h3 class="font-bold text-gray-800 text-base">${msg.title || '无标题'}</h3>
+                        <span class="text-xs text-gray-400 whitespace-nowrap ml-2">${formatTime(msg.timestamp)}</span>
+                    </div>
+                    <p class="text-gray-600 text-sm leading-relaxed">${msg.body || ''}</p>
+                    ${msg.url && msg.url !== '/' ? '<div class="mt-2 text-xs text-blue-500 font-medium flex items-center">点击查看详情 &rarr;</div>' : ''}
+                `;
+                inboxList.appendChild(card);
+            });
+        }
+
+        // --- 核心业务 ---
+        async function initMessaging() {
+            try {
+                // 1. 注册 SW
+                const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' });
+                log('SW 就绪');
+
+                // 2. 初始化列表
+                renderInbox();
+
+                // 3. 按钮事件
+                document.getElementById('enable-btn').addEventListener('click', async () => {
+                    log('请求权限...');
+                    const permission = await Notification.requestPermission();
+                    if (permission !== 'granted') return log('权限被拒绝');
+
+                    log('获取 Token...');
+                    const token = await getToken(messaging, { 
+                        vapidKey: VAPID_KEY,
+                        serviceWorkerRegistration: registration 
+                    });
+
+                    if (token) {
+                        log('Token 获取成功');
+                        sendTokenToBackend(token);
+                    }
+                });
+
+                document.getElementById('clear-btn').onclick = dbHelper.clear;
+                document.getElementById('refresh-btn').onclick = renderInbox;
+
+                // 4. 监听前台消息 (App打开时收到消息)
+                onMessage(messaging, async (payload) => {
+                    log('收到新消息: ' + payload.notification.title);
+                    
+                    // 保存到数据库
+                    await dbHelper.add({
+                        title: payload.notification.title,
+                        body: payload.notification.body,
+                        url: payload.data?.url || '/',
+                        timestamp: Date.now(),
+                        read: true // 前台收到的算是已读？或者未读，看业务
+                    });
+
+                    // 立即刷新列表，让用户看到新消息弹出
+                    renderInbox();
+                });
+
+                // 5. 监听 IndexedDB 变更 (如果在后台 SW 写入了数据，前台需要感知)
+                // 注意：IndexedDB 没有原生跨 Tab 监听事件，这里用 focus 简单模拟刷新
+                window.addEventListener('focus', renderInbox);
+
+            } catch (err) {
+                console.error(err);
+                log('初始化失败: ' + err.message);
+            }
+        }
+
+        async function sendTokenToBackend(token) {
+            // ... (保持你之前的上报逻辑不变) ...
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
             const platform = isIOS ? 'ios_pwa' : 'android_pwa';
             const userId = "demo_user_" + Math.floor(Math.random() * 1000); 
-
+            
             try {
-                const response = await fetch(API_URL, {
+                await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        userId: userId,
-                        token: token,
-                        platform: platform
-                    })
+                    body: JSON.stringify({ userId, token, platform })
                 });
-                
-                const result = await response.json();
-                if(response.ok) {
-                    log(`✅ 上报成功! User: ${userId}`);
-                    btn.innerText = "已开启";
-                    btn.disabled = true;
-                    btn.classList.add('bg-green-500');
-                } else {
-                    log('上报失败: ' + JSON.stringify(result));
-                }
-            } catch (e) {
-                log('网络请求错误: ' + e);
-            }
+                document.getElementById('enable-btn').innerText = "✅ 已连接服务器";
+                document.getElementById('enable-btn').classList.add("bg-green-100", "text-green-700");
+            } catch(e) { log('上报失败'); }
         }
 
-        // 封装一个主函数来处理流程
-        async function initMessaging() {
-            try {
-                // Step 1: 显式注册 Service Worker (使用相对路径 ./)
-                // scope: './' 确保它只控制当前目录下的页面
-                const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' });
-                log('Service Worker 注册成功，Scope为: ' + registration.scope);
-
-                // 按钮点击事件
-                btn.addEventListener('click', async () => {
-                    log('正在请求通知权限...');
-                    
-                    try {
-                        const permission = await Notification.requestPermission();
-                        if (permission !== 'granted') {
-                            log('权限被拒绝');
-                            return;
-                        }
-                        log('权限已获取，正在获取 Token...');
-
-                        // Step 2: 关键！将 registration 传入 getToken
-                        const token = await getToken(messaging, { 
-                            vapidKey: VAPID_KEY,
-                            serviceWorkerRegistration: registration 
-                        });
-
-                        if (token) {
-                            log('获取 Token 成功!');
-                            await sendTokenToBackend(token);
-                        } else {
-                            log('未获取到 Token');
-                        }
-
-                    } catch (err) {
-                        log('获取 Token 流程错误: ' + err);
-                        console.error(err);
-                    }
-                });
-
-                // 监听前台消息
-                /*
-                onMessage(messaging, (payload) => {
-                    log('收到前台消息: ' + payload.notification.title);
-                    alert(`新消息: ${payload.notification.title}\n${payload.notification.body}`);
-                });
-                */
-                onMessage(messaging, (payload) => {
-                    console.log('前台收到消息:', payload);
-                    
-                    // 1. 不要弹系统通知，直接修改 DOM
-                    const chatBox = document.getElementById('chat-box');
-                    const newMsg = document.createElement('div');
-                    newMsg.textContent = payload.notification.body;
-                    newMsg.className = "bg-blue-100 p-2 rounded mb-2";
-                    chatBox.appendChild(newMsg);
-
-                    // 2. 甚至可以控制 App 角标 (仅部分支持)
-                    if ('setAppBadge' in navigator) {
-                        navigator.setAppBadge(1);
-                    }
-                });
-
-            } catch (err) {
-                log('Service Worker 注册失败: ' + err);
-                console.error(err);
-            }
-        }
-
-        // 启动
         if ('serviceWorker' in navigator) {
-           initMessaging();
+            initMessaging();
         }
     </script>
 </body>

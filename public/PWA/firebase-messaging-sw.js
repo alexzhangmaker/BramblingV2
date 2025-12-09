@@ -1,7 +1,6 @@
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.0.0/firebase-messaging-compat.js');
 
-// 1. 初始化 Firebase (替换为你的配置)
 const firebaseConfig = {
   apiKey: "AIzaSyAXlqDll3KTeuwuE7bIpo6fMepouHHhILs",
   authDomain: "outpostmessageproxy.firebaseapp.com",
@@ -14,59 +13,81 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// 2. 监听后台消息
+// --- IndexedDB 辅助函数 (用于保存消息) ---
+const DB_NAME = 'OutpostPWA_DB';
+const STORE_NAME = 'inbox';
+
+function saveMsgToDB(msgData) {
+  return new Promise((resolve, reject) => {
+    const request = indexedDB.open(DB_NAME, 1);
+    
+    request.onupgradeneeded = (event) => {
+      const db = event.target.result;
+      if (!db.objectStoreNames.contains(STORE_NAME)) {
+        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      }
+    };
+
+    request.onsuccess = (event) => {
+      const db = event.target.result;
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      
+      // 构造要存储的数据对象
+      const record = {
+        title: msgData.notification.title,
+        body: msgData.notification.body,
+        url: msgData.data.url || '/',
+        timestamp: Date.now(),
+        read: false
+      };
+      
+      store.add(record);
+      tx.oncomplete = () => {
+        db.close();
+        resolve(record);
+      };
+    };
+    
+    request.onerror = (e) => reject(e);
+  });
+}
+
+// --- 监听后台消息 ---
 messaging.onBackgroundMessage(function(payload) {
   console.log('[SW] 后台收到消息:', payload);
 
-  // 1. 解析自定义数据
-  // 注意：payload.data 里的都是字符串
-  const targetUrl = payload.data.url || '/'; 
-  
-  // 2. 自定义通知外观
+  // 1. 保存到 IndexedDB (这是 Inbox 的关键)
+  saveMsgToDB(payload).then(() => {
+    console.log('[SW] 消息已保存到 Inbox');
+  }).catch(err => console.error('[SW] 保存失败', err));
+
+  // 2. 正常弹出通知
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: './icons/icon-192.png',
-    badge: './icons/badge.png', // 安卓状态栏的小图标
+    icon: 'https://cdn-icons-png.flaticon.com/512/1041/1041888.png',
     data: { 
-      // 关键！把需要跳转的 URL 藏在这里，点击事件要用
-      url: targetUrl,
-      timestamp: Date.now()
-    },
-    // 3. 交互按钮 (Action Buttons) - 仅限部分支持的浏览器
-    actions: [
-      {action: 'open', title: '查看详情'},
-      {action: 'close', title: '忽略'}
-    ]
+      url: payload.data.url || '/',
+    }
   };
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-
-
-// 追加在 firebase-messaging-sw.js 底部
+// --- 点击通知跳转 ---
 self.addEventListener('notificationclick', function(event) {
-  console.log('[SW] 通知被点击');
-  
-  // 1. 关闭通知弹窗 (必做，否则它会一直停在那)
   event.notification.close();
+  const targetUrl = event.notification.data.url;
 
-  // 2. 获取我们在阶段一里埋进去的数据
-  const targetUrl = event.notification.data.url || '/';
-
-  // 3. 智能导航逻辑 (这是 PWA 的精华)
   event.waitUntil(
     clients.matchAll({type: 'window', includeUncontrolled: true}).then(function(windowClients) {
-      // A. 检查是否已经有打开的窗口
       for (let i = 0; i < windowClients.length; i++) {
         const client = windowClients[i];
-        // 如果找到了，且 URL 匹配 (或者只是想聚焦同一个 App)
         if (client.url.includes(targetUrl) && 'focus' in client) {
-          return client.focus(); // 仅仅聚焦，或者 client.navigate(targetUrl) 刷新
+          return client.focus();
         }
       }
-      // B. 如果没有打开的窗口，则打开新窗口
       if (clients.openWindow) {
         return clients.openWindow(targetUrl);
       }
