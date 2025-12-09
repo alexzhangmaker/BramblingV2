@@ -26,8 +26,8 @@ messaging.onBackgroundMessage(function(payload) {
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
-    icon: '/icons/icon-192.png',
-    badge: '/icons/badge.png', // 安卓状态栏的小图标
+    icon: './icons/icon-192.png',
+    badge: './icons/badge.png', // 安卓状态栏的小图标
     data: { 
       // 关键！把需要跳转的 URL 藏在这里，点击事件要用
       url: targetUrl,
