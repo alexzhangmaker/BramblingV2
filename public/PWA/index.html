@@ -129,10 +129,27 @@
                 });
 
                 // 监听前台消息
+                /*
                 onMessage(messaging, (payload) => {
                     log('收到前台消息: ' + payload.notification.title);
                     alert(`新消息: ${payload.notification.title}\n${payload.notification.body}`);
                 });
+                */
+                onMessage(messaging, (payload) => {
+  console.log('前台收到消息:', payload);
+  
+  // 1. 不要弹系统通知，直接修改 DOM
+  const chatBox = document.getElementById('chat-box');
+  const newMsg = document.createElement('div');
+  newMsg.textContent = payload.notification.body;
+  newMsg.className = "bg-blue-100 p-2 rounded mb-2";
+  chatBox.appendChild(newMsg);
+
+  // 2. 甚至可以控制 App 角标 (仅部分支持)
+  if ('setAppBadge' in navigator) {
+    navigator.setAppBadge(1);
+  }
+});
 
             } catch (err) {
                 log('Service Worker 注册失败: ' + err);
