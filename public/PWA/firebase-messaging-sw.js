@@ -13,69 +13,70 @@ const firebaseConfig = {
 firebase.initializeApp(firebaseConfig);
 const messaging = firebase.messaging();
 
-// --- IndexedDB 辅助函数 (用于保存消息) ---
+// --- IndexedDB 配置 (版本号升级为 2) ---
 const DB_NAME = 'OutpostPWA_DB';
-const STORE_NAME = 'inbox';
+const DB_VERSION = 2; // ✅ 升级版本
+const STORE_INBOX = 'inbox';
+const STORE_CONFIG = 'config'; // ✅ 新增配置存储
 
-function saveMsgToDB(msgData) {
+function getDB() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
+    const request = indexedDB.open(DB_NAME, DB_VERSION);
     
     request.onupgradeneeded = (event) => {
       const db = event.target.result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      // 创建收件箱 Store
+      if (!db.objectStoreNames.contains(STORE_INBOX)) {
+        db.createObjectStore(STORE_INBOX, { keyPath: 'id', autoIncrement: true });
+      }
+      // ✅ 创建配置 Store (键值对模式)
+      if (!db.objectStoreNames.contains(STORE_CONFIG)) {
+        db.createObjectStore(STORE_CONFIG, { keyPath: 'key' });
       }
     };
 
-    request.onsuccess = (event) => {
-      const db = event.target.result;
-      const tx = db.transaction(STORE_NAME, 'readwrite');
-      const store = tx.objectStore(STORE_NAME);
-      
-      // 构造要存储的数据对象
-      const record = {
-        title: msgData.notification.title,
-        body: msgData.notification.body,
-        url: msgData.data.url || '/',
-        timestamp: Date.now(),
-        read: false
-      };
-      
-      store.add(record);
-      tx.oncomplete = () => {
-        db.close();
-        resolve(record);
-      };
-    };
-    
+    request.onsuccess = (event) => resolve(event.target.result);
     request.onerror = (e) => reject(e);
   });
 }
 
-// --- 监听后台消息 ---
+// 保存消息逻辑
+async function saveMsgToDB(msgData) {
+  try {
+    const db = await getDB();
+    const tx = db.transaction(STORE_INBOX, 'readwrite');
+    const store = tx.objectStore(STORE_INBOX);
+    
+    store.add({
+      title: msgData.notification.title,
+      body: msgData.notification.body,
+      url: msgData.data.url || '/',
+      timestamp: Date.now(),
+      read: false
+    });
+    
+    return tx.complete;
+  } catch (err) {
+    console.error('[SW] DB Error:', err);
+  }
+}
+
+// 监听后台消息
 messaging.onBackgroundMessage(function(payload) {
   console.log('[SW] 后台收到消息:', payload);
+  saveMsgToDB(payload);
 
-  // 1. 保存到 IndexedDB (这是 Inbox 的关键)
-  saveMsgToDB(payload).then(() => {
-    console.log('[SW] 消息已保存到 Inbox');
-  }).catch(err => console.error('[SW] 保存失败', err));
-
-  // 2. 正常弹出通知
   const notificationTitle = payload.notification.title;
   const notificationOptions = {
     body: payload.notification.body,
     icon: 'https://cdn-icons-png.flaticon.com/512/1041/1041888.png',
-    data: { 
-      url: payload.data.url || '/',
-    }
+    data: { url: payload.data.url || '/' }
   };
 
   return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
-// --- 点击通知跳转 ---
+// 点击跳转
 self.addEventListener('notificationclick', function(event) {
   event.notification.close();
   const targetUrl = event.notification.data.url;
@@ -88,9 +89,7 @@ self.addEventListener('notificationclick', function(event) {
           return client.focus();
         }
       }
-      if (clients.openWindow) {
-        return clients.openWindow(targetUrl);
-      }
+      if (clients.openWindow) return clients.openWindow(targetUrl);
     })
   );
 });

@@ -9,7 +9,7 @@
 </head>
 <body class="bg-gray-50 min-h-screen flex flex-col max-w-md mx-auto shadow-xl">
 
-    <div class="bg-blue-600 text-white p-4 sticky top-0 z-10 shadow-md flex justify-between items-center">
+    <div class="bg-blue-600 text-white p-4 sticky top-0 z-20 shadow-md flex justify-between items-center">
         <h1 class="text-xl font-bold flex items-center">
             <img src="https://cdn-icons-png.flaticon.com/512/1041/1041888.png" class="w-8 h-8 mr-2 bg-white rounded-full p-1">
             消息中心
@@ -17,19 +17,33 @@
         <button id="refresh-btn" class="text-sm bg-blue-700 hover:bg-blue-800 px-3 py-1 rounded transition">刷新</button>
     </div>
 
+    <div class="bg-blue-50 border-b border-blue-100 p-4">
+        <label class="block text-xs font-bold text-blue-800 uppercase tracking-wide mb-1">
+            配置 User ID (唯一标识)
+        </label>
+        <div class="flex space-x-2">
+            <input id="userid-input" type="text" 
+                class="flex-1 shadow-sm focus:ring-blue-500 focus:border-blue-500 block w-full sm:text-sm border-gray-300 rounded-md px-3 py-2" 
+                placeholder="例如: user_888 或 alex@gmail.com">
+            <button id="save-userid-btn" class="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md text-sm transition shadow-sm whitespace-nowrap">
+                保存
+            </button>
+        </div>
+        <p class="text-xs text-gray-500 mt-1" id="config-status">请输入 ID 以绑定设备</p>
+    </div>
+
     <div class="p-4 bg-white border-b">
-        <div id="status-box" class="text-xs text-gray-400 font-mono mb-2 truncate">初始化中...</div>
-        <button id="enable-btn" class="w-full bg-blue-100 text-blue-700 font-semibold py-2 rounded-lg hover:bg-blue-200 transition mb-2">
-            🔔 开启推送通知
+        <div id="status-box" class="text-xs text-gray-400 font-mono mb-2 truncate bg-gray-50 p-2 rounded">等待初始化...</div>
+        <button id="enable-btn" class="w-full bg-gray-100 text-gray-600 font-semibold py-2 rounded-lg hover:bg-gray-200 transition mb-2">
+            🔔 开启/更新 推送权限
         </button>
-        <button id="clear-btn" class="w-full text-gray-500 text-sm py-1 hover:text-red-500 transition">
-            清空所有消息
+        <button id="clear-btn" class="w-full text-gray-400 text-xs py-1 hover:text-red-500 transition">
+            清空所有消息记录
         </button>
     </div>
 
-    <div id="inbox-list" class="flex-1 p-4 space-y-3 overflow-y-auto">
-        <div class="text-center text-gray-400 py-10">暂无消息</div>
-    </div>
+    <div id="inbox-list" class="flex-1 p-4 space-y-3 overflow-y-auto pb-20">
+        </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.0/firebase-app.js";
@@ -50,54 +64,77 @@
         const app = initializeApp(firebaseConfig);
         const messaging = getMessaging(app);
 
-        // --- IndexedDB 工具 ---
+        // --- IndexedDB 工具 (v2) ---
         const DB_NAME = 'OutpostPWA_DB';
-        const STORE_NAME = 'inbox';
+        const DB_VERSION = 2; // ✅ 升级版本
+        const STORE_INBOX = 'inbox';
+        const STORE_CONFIG = 'config';
 
         const dbHelper = {
             open: () => {
                 return new Promise((resolve, reject) => {
-                    const req = indexedDB.open(DB_NAME, 1);
+                    const req = indexedDB.open(DB_NAME, DB_VERSION);
                     req.onupgradeneeded = (e) => {
                         const db = e.target.result;
-                        if (!db.objectStoreNames.contains(STORE_NAME)) {
-                            db.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+                        if (!db.objectStoreNames.contains(STORE_INBOX)) {
+                            db.createObjectStore(STORE_INBOX, { keyPath: 'id', autoIncrement: true });
+                        }
+                        // ✅ 新增 Config Store
+                        if (!db.objectStoreNames.contains(STORE_CONFIG)) {
+                            db.createObjectStore(STORE_CONFIG, { keyPath: 'key' });
                         }
                     };
                     req.onsuccess = (e) => resolve(e.target.result);
                     req.onerror = (e) => reject(e);
                 });
             },
-            add: async (msg) => {
+            // 获取 UserID
+            getUserID: async () => {
+                const db = await dbHelper.open();
+                return new Promise((resolve) => {
+                    const tx = db.transaction(STORE_CONFIG, 'readonly');
+                    const req = tx.objectStore(STORE_CONFIG).get('userId');
+                    req.onsuccess = () => resolve(req.result ? req.result.value : null);
+                    req.onerror = () => resolve(null);
+                });
+            },
+            // 保存 UserID
+            saveUserID: async (id) => {
                 const db = await dbHelper.open();
                 return new Promise((resolve, reject) => {
-                    const tx = db.transaction(STORE_NAME, 'readwrite');
-                    tx.objectStore(STORE_NAME).add(msg);
+                    const tx = db.transaction(STORE_CONFIG, 'readwrite');
+                    tx.objectStore(STORE_CONFIG).put({ key: 'userId', value: id });
                     tx.oncomplete = () => resolve();
                     tx.onerror = (e) => reject(e);
                 });
             },
-            getAll: async () => {
+            // 消息操作 (保持不变)
+            addMsg: async (msg) => {
                 const db = await dbHelper.open();
-                return new Promise((resolve, reject) => {
-                    const tx = db.transaction(STORE_NAME, 'readonly');
-                    const req = tx.objectStore(STORE_NAME).getAll();
+                const tx = db.transaction(STORE_INBOX, 'readwrite');
+                tx.objectStore(STORE_INBOX).add(msg);
+            },
+            getAllMsg: async () => {
+                const db = await dbHelper.open();
+                return new Promise((resolve) => {
+                    const req = db.transaction(STORE_INBOX, 'readonly').objectStore(STORE_INBOX).getAll();
                     req.onsuccess = () => resolve(req.result);
-                    req.onerror = (e) => reject(e);
                 });
             },
-            clear: async () => {
+            clearMsg: async () => {
                 const db = await dbHelper.open();
-                const tx = db.transaction(STORE_NAME, 'readwrite');
-                tx.objectStore(STORE_NAME).clear();
-                renderInbox(); // 清空后刷新UI
+                const tx = db.transaction(STORE_INBOX, 'readwrite');
+                tx.objectStore(STORE_INBOX).clear();
+                tx.oncomplete = () => renderInbox();
             }
         };
 
         // --- UI 逻辑 ---
         const inboxList = document.getElementById('inbox-list');
         const statusBox = document.getElementById('status-box');
-        
+        const userIdInput = document.getElementById('userid-input');
+        const configStatus = document.getElementById('config-status');
+
         function log(msg) {
             console.log(msg);
             statusBox.textContent = msg;
@@ -108,10 +145,8 @@
         }
 
         async function renderInbox() {
-            const messages = await dbHelper.getAll();
-            // 按时间倒序排列（最新的在上面）
+            const messages = await dbHelper.getAllMsg();
             messages.sort((a, b) => b.timestamp - a.timestamp);
-
             inboxList.innerHTML = '';
             
             if (messages.length === 0) {
@@ -122,99 +157,134 @@
             messages.forEach(msg => {
                 const card = document.createElement('div');
                 card.className = "bg-white p-4 rounded-lg shadow-sm border border-gray-100 hover:shadow-md transition cursor-pointer active:bg-gray-50";
-                card.onclick = () => {
-                   if(msg.url && msg.url !== '/') window.location.href = msg.url;
-                };
-
+                card.onclick = () => { if(msg.url && msg.url !== '/') window.location.href = msg.url; };
                 card.innerHTML = `
                     <div class="flex justify-between items-start mb-1">
                         <h3 class="font-bold text-gray-800 text-base">${msg.title || '无标题'}</h3>
-                        <span class="text-xs text-gray-400 whitespace-nowrap ml-2">${formatTime(msg.timestamp)}</span>
+                        <span class="text-xs text-gray-400 ml-2 whitespace-nowrap">${formatTime(msg.timestamp)}</span>
                     </div>
                     <p class="text-gray-600 text-sm leading-relaxed">${msg.body || ''}</p>
-                    ${msg.url && msg.url !== '/' ? '<div class="mt-2 text-xs text-blue-500 font-medium flex items-center">点击查看详情 &rarr;</div>' : ''}
+                    ${msg.url && msg.url !== '/' ? '<div class="mt-2 text-xs text-blue-500 font-medium">点击详情 &rarr;</div>' : ''}
                 `;
                 inboxList.appendChild(card);
             });
         }
 
-        // --- 核心业务 ---
-        async function initMessaging() {
+        // --- 核心流程 ---
+        let currentSWReg = null;
+
+        async function initApp() {
             try {
                 // 1. 注册 SW
-                const registration = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' });
+                currentSWReg = await navigator.serviceWorker.register('./firebase-messaging-sw.js', { scope: './' });
                 log('SW 就绪');
 
-                // 2. 初始化列表
+                // 2. 加载 UI 数据
                 renderInbox();
+                
+                // 3. 加载已保存的 UserID
+                const savedId = await dbHelper.getUserID();
+                if (savedId) {
+                    userIdInput.value = savedId;
+                    configStatus.innerHTML = `<span class="text-green-600">✅ 当前 ID: ${savedId}</span>`;
+                    configStatus.dataset.ready = "true";
+                } else {
+                    configStatus.innerHTML = `<span class="text-amber-500">⚠️ 未设置 ID，无法精准接收消息</span>`;
+                }
 
-                // 3. 按钮事件
-                document.getElementById('enable-btn').addEventListener('click', async () => {
-                    log('请求权限...');
-                    const permission = await Notification.requestPermission();
-                    if (permission !== 'granted') return log('权限被拒绝');
-
-                    log('获取 Token...');
-                    const token = await getToken(messaging, { 
-                        vapidKey: VAPID_KEY,
-                        serviceWorkerRegistration: registration 
-                    });
-
-                    if (token) {
-                        log('Token 获取成功');
-                        sendTokenToBackend(token);
-                    }
-                });
-
-                document.getElementById('clear-btn').onclick = dbHelper.clear;
+                // 4. 事件绑定
+                document.getElementById('save-userid-btn').onclick = handleSaveConfig;
+                document.getElementById('enable-btn').onclick = handleEnablePush;
+                document.getElementById('clear-btn').onclick = dbHelper.clearMsg;
                 document.getElementById('refresh-btn').onclick = renderInbox;
 
-                // 4. 监听前台消息 (App打开时收到消息)
+                // 5. 监听前台消息
                 onMessage(messaging, async (payload) => {
                     log('收到新消息: ' + payload.notification.title);
-                    
-                    // 保存到数据库
-                    await dbHelper.add({
+                    await dbHelper.addMsg({
                         title: payload.notification.title,
                         body: payload.notification.body,
                         url: payload.data?.url || '/',
-                        timestamp: Date.now(),
-                        read: true // 前台收到的算是已读？或者未读，看业务
+                        timestamp: Date.now()
                     });
-
-                    // 立即刷新列表，让用户看到新消息弹出
                     renderInbox();
                 });
-
-                // 5. 监听 IndexedDB 变更 (如果在后台 SW 写入了数据，前台需要感知)
-                // 注意：IndexedDB 没有原生跨 Tab 监听事件，这里用 focus 简单模拟刷新
                 window.addEventListener('focus', renderInbox);
 
             } catch (err) {
+                log('Error: ' + err.message);
                 console.error(err);
-                log('初始化失败: ' + err.message);
             }
         }
 
-        async function sendTokenToBackend(token) {
-            // ... (保持你之前的上报逻辑不变) ...
+        // ✅ 处理保存配置
+        async function handleSaveConfig() {
+            const newId = userIdInput.value.trim();
+            if (!newId) return alert("请输入有效的 User ID");
+
+            await dbHelper.saveUserID(newId);
+            configStatus.innerHTML = `<span class="text-green-600">✅ 已保存! 正在重新绑定...</span>`;
+            configStatus.dataset.ready = "true";
+            
+            // 保存后尝试自动重新上报 Token，以更新绑定关系
+            handleEnablePush(); 
+        }
+
+        // ✅ 处理开启/更新推送
+        async function handleEnablePush() {
+            // 检查是否设置了 ID
+            const userId = await dbHelper.getUserID();
+            if (!userId) {
+                alert("请先在上方输入并保存 User ID！");
+                userIdInput.focus();
+                return;
+            }
+
+            log('正在同步...');
+            try {
+                const permission = await Notification.requestPermission();
+                if (permission !== 'granted') return log('权限被拒绝');
+
+                const token = await getToken(messaging, { 
+                    vapidKey: VAPID_KEY,
+                    serviceWorkerRegistration: currentSWReg 
+                });
+
+                if (token) {
+                    await sendTokenToBackend(token, userId);
+                }
+            } catch (e) {
+                log('出错: ' + e.message);
+            }
+        }
+
+        // ✅ 上报 Token (带上 UserID)
+        async function sendTokenToBackend(token, userId) {
+            log(`正在绑定设备到用户: ${userId}...`);
             const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
             const platform = isIOS ? 'ios_pwa' : 'android_pwa';
-            const userId = "demo_user_" + Math.floor(Math.random() * 1000); 
             
             try {
-                await fetch(API_URL, {
+                const res = await fetch(API_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ userId, token, platform })
                 });
-                document.getElementById('enable-btn').innerText = "✅ 已连接服务器";
-                document.getElementById('enable-btn').classList.add("bg-green-100", "text-green-700");
-            } catch(e) { log('上报失败'); }
+                
+                if (res.ok) {
+                    log(`✅ 绑定成功! ID: ${userId}`);
+                    const btn = document.getElementById('enable-btn');
+                    btn.classList.remove('bg-gray-100', 'text-gray-600');
+                    btn.classList.add('bg-green-100', 'text-green-700');
+                    btn.innerText = "✅ 设备已连接";
+                } else {
+                    log('绑定失败');
+                }
+            } catch(e) { log('网络错误'); }
         }
 
         if ('serviceWorker' in navigator) {
-            initMessaging();
+            initApp();
         }
     </script>
 </body>
