@@ -12,7 +12,14 @@ admin.initializeApp({
 });
 
 const db = admin.database();
-const duckDbFilePath = './PortfolioData.duckdb';
+const duckDbFilePath = path.join(__dirname, '../duckDB/PortfolioData.duckdb');
+
+// Ensure database directory exists
+const dbDir = path.dirname(duckDbFilePath);
+if (!fs.existsSync(dbDir)) {
+  console.log(`📁 创建数据库目录: ${dbDir}`);
+  fs.mkdirSync(dbDir, { recursive: true });
+}
 
 class DatabaseInitializer {
   constructor() {
@@ -74,22 +81,22 @@ class DatabaseInitializer {
    */
   async initializeDatabase() {
     const connection = this.createConnection();
-    
+
     try {
       console.log('🗄️ 开始初始化数据库表结构...');
 
       // 删除所有现有表（如果有）
       const tables = [
-        'tblAccountHoldings', 
-        'tblHoldingAggrView', 
-        'tblTaskRecords', 
-        'tblQuotationTTM', 
+        'tblAccountHoldings',
+        'tblHoldingAggrView',
+        'tblTaskRecords',
+        'tblQuotationTTM',
         'tblExchangeRateTTM',
-        'tblAccountBalanceSheet',  // 新增资产负债表
-        'tblOtherAssets',  // 新增其他资产表
-        'tblPeriodicBalanceSheet'  // 新增定期资产负债记录表
+        'tblAccountBalanceSheet',
+        'tblOtherAssets',
+        'tblPeriodicBalanceSheet'
       ];
-      
+
       for (const table of tables) {
         try {
           await this.safeRun(connection, `DROP TABLE IF EXISTS ${table}`);
@@ -122,7 +129,7 @@ class DatabaseInitializer {
       await this.safeRun(connection, "CREATE INDEX idx_account_ticker ON tblAccountHoldings(accountID, ticker)");
       await this.safeRun(connection, "CREATE INDEX idx_ticker ON tblAccountHoldings(ticker)");
 
-      // 创建持仓汇总表（添加 company 字段）
+      // 创建持仓汇总表
       await this.safeRun(connection, `
         CREATE TABLE tblHoldingAggrView (
           ticker VARCHAR PRIMARY KEY,
@@ -141,7 +148,7 @@ class DatabaseInitializer {
           calculatedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      console.log('✅ 创建 tblHoldingAggrView 表（包含 company 字段）');
+      console.log('✅ 创建 tblHoldingAggrView 表');
 
       // 创建任务记录表
       await this.safeRun(connection, `
@@ -187,28 +194,23 @@ class DatabaseInitializer {
         CREATE TABLE tblAccountBalanceSheet (
           accountID VARCHAR PRIMARY KEY,
           baseCurrency VARCHAR,
-          -- 原货币计量的现金和负债
           cashOriginal DOUBLE DEFAULT 0,
           debtOriginal DOUBLE DEFAULT 0,
-          -- 人民币计量的现金和负债
           cashCNY DOUBLE DEFAULT 0,
           debtCNY DOUBLE DEFAULT 0,
-          -- 证券市值（人民币）
           securitiesValueCNY DOUBLE DEFAULT 0,
-          -- 其他资产（人民币）
           otherAssetsCNY DOUBLE DEFAULT 0,
-          -- 总净值（人民币）：现金CNY - 负债CNY + 证券市值CNY + 其他资产CNY
           totalValue DOUBLE DEFAULT 0,
           lastUpdated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      console.log('✅ 创建 tblAccountBalanceSheet 表（资产负债表）');
+      console.log('✅ 创建 tblAccountBalanceSheet 表');
 
       // 创建其他资产表
       await this.safeRun(connection, `
         CREATE TABLE tblOtherAssets (
           assetID VARCHAR PRIMARY KEY,
-          assetType VARCHAR,  -- funds, bankAccounts, insurance, properties
+          assetType VARCHAR,
           accountName VARCHAR,
           currency VARCHAR,
           cost DOUBLE DEFAULT 0,
@@ -224,30 +226,21 @@ class DatabaseInitializer {
           lastUpdated TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      console.log('✅ 创建 tblOtherAssets 表（其他资产表）');
+      console.log('✅ 创建 tblOtherAssets 表');
 
       // 创建定期资产负债记录表
       await this.safeRun(connection, `
         CREATE TABLE tblPeriodicBalanceSheet (
-          periodID VARCHAR PRIMARY KEY,  -- 格式: YYYY-MM-DD
+          periodID VARCHAR PRIMARY KEY,
           periodDate DATE,
-          -- 证券账户市值（人民币）
           securitiesValueCNY DOUBLE DEFAULT 0,
-          -- 保险资产市值（人民币）
           insuranceValueCNY DOUBLE DEFAULT 0,
-          -- 基金资产（人民币）
           fundsValueCNY DOUBLE DEFAULT 0,
-          -- 房产资产（人民币）
           propertiesValueCNY DOUBLE DEFAULT 0,
-          -- 银行存款（人民币）
           bankDepositsCNY DOUBLE DEFAULT 0,
-          -- 现金总额（人民币）
           totalCashCNY DOUBLE DEFAULT 0,
-          -- 负债总额（人民币）
           totalDebtCNY DOUBLE DEFAULT 0,
-          -- 总资产净值（人民币）
           totalNetValueCNY DOUBLE DEFAULT 0,
-          -- 详细统计
           accountCount INTEGER DEFAULT 0,
           securitiesCount INTEGER DEFAULT 0,
           insuranceCount INTEGER DEFAULT 0,
@@ -257,7 +250,7 @@ class DatabaseInitializer {
           createdAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
       `);
-      console.log('✅ 创建 tblPeriodicBalanceSheet 表（定期资产负债记录表）');
+      console.log('✅ 创建 tblPeriodicBalanceSheet 表');
 
       console.log('🎉 所有数据库表初始化完成');
 
@@ -274,16 +267,22 @@ class DatabaseInitializer {
    */
   async syncFundsData() {
     const connection = this.createConnection();
-    
+    const result = {
+      type: 'Funds',
+      totalExpected: 0,
+      successCount: 0,
+      failedCount: 0,
+      failedItems: []
+    };
+
     try {
       console.log('📊 开始同步基金数据...');
-      
+
       const snapshot = await db.ref('funds').once('value');
       const funds = snapshot.val() || {};
-      
-      console.log(`📈 从Firebase读取到 ${Object.keys(funds).length} 个基金`);
+      result.totalExpected = Object.keys(funds).length;
 
-      let successCount = 0;
+      console.log(`📈 从Firebase读取到 ${result.totalExpected} 个基金`);
 
       await this.safeRun(connection, "BEGIN TRANSACTION");
 
@@ -295,21 +294,21 @@ class DatabaseInitializer {
             VALUES (?, 'funds', ?, ?, ?, ?)
           `, [fundID, fundID, fundData.currency || 'CNY', fundData.cost || 0, fundData.value || 0]);
 
-          successCount++;
-          console.log(`✅ 同步基金 ${fundID}: 成本 ${fundData.cost} ${fundData.currency}, 价值 ${fundData.value} ${fundData.currency}`);
-
+          result.successCount++;
         } catch (error) {
+          result.failedCount++;
+          result.failedItems.push({ id: fundID, error: error.message });
           console.error(`❌ 同步基金 ${fundID} 失败:`, error.message);
         }
       }
 
       await this.safeRun(connection, "COMMIT");
-      console.log(`✅ 基金数据同步完成: ${successCount} 个基金成功同步`);
+      console.log(`✅ 基金数据同步完成: ${result.successCount}/${result.totalExpected}`);
 
-      return { successCount };
+      return result;
 
     } catch (error) {
-      try { await this.safeRun(connection, "ROLLBACK"); } catch {}
+      try { await this.safeRun(connection, "ROLLBACK"); } catch { }
       console.error('❌ 基金数据同步失败:', error.message);
       throw error;
     } finally {
@@ -322,16 +321,22 @@ class DatabaseInitializer {
    */
   async syncBankAccountsData() {
     const connection = this.createConnection();
-    
+    const result = {
+      type: 'BankAccounts',
+      totalExpected: 0,
+      successCount: 0,
+      failedCount: 0,
+      failedItems: []
+    };
+
     try {
       console.log('🏦 开始同步银行账户数据...');
-      
+
       const snapshot = await db.ref('bankAccounts').once('value');
       const bankAccounts = snapshot.val() || {};
-      
-      console.log(`📊 从Firebase读取到 ${Object.keys(bankAccounts).length} 个银行账户`);
+      result.totalExpected = Object.keys(bankAccounts).length;
 
-      let successCount = 0;
+      console.log(`📊 从Firebase读取到 ${result.totalExpected} 个银行账户`);
 
       await this.safeRun(connection, "BEGIN TRANSACTION");
 
@@ -343,21 +348,21 @@ class DatabaseInitializer {
             VALUES (?, 'bankAccounts', ?, ?, ?, ?)
           `, [accountID, accountID, accountData.currency || 'CNY', accountData.deposit || 0, accountData.loan || 0]);
 
-          successCount++;
-          console.log(`✅ 同步银行账户 ${accountID}: 存款 ${accountData.deposit} ${accountData.currency}, 贷款 ${accountData.loan} ${accountData.currency}`);
-
+          result.successCount++;
         } catch (error) {
+          result.failedCount++;
+          result.failedItems.push({ id: accountID, error: error.message });
           console.error(`❌ 同步银行账户 ${accountID} 失败:`, error.message);
         }
       }
 
       await this.safeRun(connection, "COMMIT");
-      console.log(`✅ 银行账户数据同步完成: ${successCount} 个账户成功同步`);
+      console.log(`✅ 银行账户数据同步完成: ${result.successCount}/${result.totalExpected}`);
 
-      return { successCount };
+      return result;
 
     } catch (error) {
-      try { await this.safeRun(connection, "ROLLBACK"); } catch {}
+      try { await this.safeRun(connection, "ROLLBACK"); } catch { }
       console.error('❌ 银行账户数据同步失败:', error.message);
       throw error;
     } finally {
@@ -370,16 +375,22 @@ class DatabaseInitializer {
    */
   async syncInsuranceData() {
     const connection = this.createConnection();
-    
+    const result = {
+      type: 'Insurance',
+      totalExpected: 0,
+      successCount: 0,
+      failedCount: 0,
+      failedItems: []
+    };
+
     try {
       console.log('🛡️ 开始同步保险数据...');
-      
+
       const snapshot = await db.ref('insurance').once('value');
       const insurance = snapshot.val() || {};
-      
-      console.log(`📊 从Firebase读取到 ${Object.keys(insurance).length} 个保险`);
+      result.totalExpected = Object.keys(insurance).length;
 
-      let successCount = 0;
+      console.log(`📊 从Firebase读取到 ${result.totalExpected} 个保险`);
 
       await this.safeRun(connection, "BEGIN TRANSACTION");
 
@@ -391,21 +402,21 @@ class DatabaseInitializer {
             VALUES (?, 'insurance', ?, ?, ?, ?)
           `, [insuranceID, insuranceID, insuranceData.currency || 'CNY', insuranceData.cost || 0, insuranceData.value || 0]);
 
-          successCount++;
-          console.log(`✅ 同步保险 ${insuranceID}: 成本 ${insuranceData.cost} ${insuranceData.currency}, 价值 ${insuranceData.value} ${insuranceData.currency}`);
-
+          result.successCount++;
         } catch (error) {
+          result.failedCount++;
+          result.failedItems.push({ id: insuranceID, error: error.message });
           console.error(`❌ 同步保险 ${insuranceID} 失败:`, error.message);
         }
       }
 
       await this.safeRun(connection, "COMMIT");
-      console.log(`✅ 保险数据同步完成: ${successCount} 个保险成功同步`);
+      console.log(`✅ 保险数据同步完成: ${result.successCount}/${result.totalExpected}`);
 
-      return { successCount };
+      return result;
 
     } catch (error) {
-      try { await this.safeRun(connection, "ROLLBACK"); } catch {}
+      try { await this.safeRun(connection, "ROLLBACK"); } catch { }
       console.error('❌ 保险数据同步失败:', error.message);
       throw error;
     } finally {
@@ -418,16 +429,22 @@ class DatabaseInitializer {
    */
   async syncPropertiesData() {
     const connection = this.createConnection();
-    
+    const result = {
+      type: 'Properties',
+      totalExpected: 0,
+      successCount: 0,
+      failedCount: 0,
+      failedItems: []
+    };
+
     try {
       console.log('🏠 开始同步房产数据...');
-      
+
       const snapshot = await db.ref('properties').once('value');
       const properties = snapshot.val() || {};
-      
-      console.log(`📊 从Firebase读取到 ${Object.keys(properties).length} 个房产`);
+      result.totalExpected = Object.keys(properties).length;
 
-      let successCount = 0;
+      console.log(`📊 从Firebase读取到 ${result.totalExpected} 个房产`);
 
       await this.safeRun(connection, "BEGIN TRANSACTION");
 
@@ -439,21 +456,21 @@ class DatabaseInitializer {
             VALUES (?, 'properties', ?, ?, ?, ?, ?)
           `, [propertyID, propertyID, propertyData.currency || 'CNY', propertyData.cost || 0, propertyData.value || 0, propertyData.debt || 0]);
 
-          successCount++;
-          console.log(`✅ 同步房产 ${propertyID}: 成本 ${propertyData.cost} ${propertyData.currency}, 价值 ${propertyData.value} ${propertyData.currency}, 负债 ${propertyData.debt} ${propertyData.currency}`);
-
+          result.successCount++;
         } catch (error) {
+          result.failedCount++;
+          result.failedItems.push({ id: propertyID, error: error.message });
           console.error(`❌ 同步房产 ${propertyID} 失败:`, error.message);
         }
       }
 
       await this.safeRun(connection, "COMMIT");
-      console.log(`✅ 房产数据同步完成: ${successCount} 个房产成功同步`);
+      console.log(`✅ 房产数据同步完成: ${result.successCount}/${result.totalExpected}`);
 
-      return { successCount };
+      return result;
 
     } catch (error) {
-      try { await this.safeRun(connection, "ROLLBACK"); } catch {}
+      try { await this.safeRun(connection, "ROLLBACK"); } catch { }
       console.error('❌ 房产数据同步失败:', error.message);
       throw error;
     } finally {
@@ -466,17 +483,23 @@ class DatabaseInitializer {
    */
   async syncAccountBalanceSheet() {
     const connection = this.createConnection();
-    
+    const result = {
+      type: 'AccountBalanceSheet',
+      totalExpected: 0, // Accounts count
+      successCount: 0,
+      failedCount: 0,
+      failedItems: []
+    };
+
     try {
       console.log('💰 开始同步账户现金和负债数据...');
-      
+
       // 获取所有账户数据
       const snapshot = await db.ref('accounts').once('value');
       const accounts = snapshot.val() || {};
-      
-      console.log(`📊 从Firebase读取到 ${Object.keys(accounts).length} 个账户`);
+      result.totalExpected = Object.keys(accounts).length;
 
-      let successCount = 0;
+      console.log(`📊 从Firebase读取到 ${result.totalExpected} 个账户`);
 
       // 开始事务
       await this.safeRun(connection, "BEGIN TRANSACTION");
@@ -485,7 +508,7 @@ class DatabaseInitializer {
         if (accountData) {
           try {
             const baseCurrency = accountData.meta?.currency || 'USD';
-            
+
             // 计算现金总额（原货币）
             let cashOriginal = 0;
             if (accountData.cash) {
@@ -493,7 +516,7 @@ class DatabaseInitializer {
                 cashOriginal += amount || 0;
               }
             }
-            
+
             // 计算负债总额（原货币）
             let debtOriginal = 0;
             if (accountData.debt) {
@@ -509,11 +532,11 @@ class DatabaseInitializer {
               VALUES (?, ?, ?, ?, 0, 0, 0, 0, 0)
             `, [accountID, baseCurrency, cashOriginal, debtOriginal]);
 
-            successCount++;
-            
-            console.log(`✅ 同步账户 ${accountID}: 现金 ${cashOriginal} ${baseCurrency}, 负债 ${debtOriginal} ${baseCurrency}`);
+            result.successCount++;
 
           } catch (error) {
+            result.failedCount++;
+            result.failedItems.push({ id: accountID, error: error.message });
             console.error(`❌ 同步账户 ${accountID} 资产负债表失败:`, error.message);
           }
         }
@@ -522,12 +545,9 @@ class DatabaseInitializer {
       // 提交事务
       await this.safeRun(connection, "COMMIT");
 
-      console.log(`✅ 资产负债表同步完成: ${successCount} 个账户成功同步`);
+      console.log(`✅ 资产负债表同步完成: ${result.successCount}/${result.totalExpected}`);
 
-      return {
-        accountCount: Object.keys(accounts).length,
-        successCount: successCount
-      };
+      return result;
 
     } catch (error) {
       // 回滚事务
@@ -536,7 +556,7 @@ class DatabaseInitializer {
       } catch (rollbackError) {
         console.warn('回滚事务时出错:', rollbackError.message);
       }
-      
+
       console.error('❌ 资产负债表同步失败:', error.message);
       throw error;
     } finally {
@@ -549,18 +569,24 @@ class DatabaseInitializer {
    */
   async batchSyncFromFirebase() {
     const connection = this.createConnection();
-    
+    const result = {
+      type: 'AccountHoldings',
+      totalAccountsExpected: 0,
+      totalHoldingsExpected: 0,
+      successCount: 0,
+      failedCount: 0,
+      failedItems: [] // { id: "account-ticker", error: msg }
+    };
+
     try {
       console.log('🔄 开始从Firebase批量同步数据...');
-      
+
       // 获取所有账户数据
       const snapshot = await db.ref('accounts').once('value');
       const accounts = snapshot.val() || {};
-      
-      console.log(`📊 从Firebase读取到 ${Object.keys(accounts).length} 个账户`);
+      result.totalAccountsExpected = Object.keys(accounts).length;
 
-      let totalHoldings = 0;
-      let successCount = 0;
+      console.log(`📊 从Firebase读取到 ${result.totalAccountsExpected} 个账户`);
 
       // 开始事务
       await this.safeRun(connection, "BEGIN TRANSACTION");
@@ -569,7 +595,7 @@ class DatabaseInitializer {
         if (accountData && accountData.holdings) {
           const holdings = accountData.holdings;
           const holdingsCount = Object.keys(holdings).length;
-          totalHoldings += holdingsCount;
+          result.totalHoldingsExpected += holdingsCount;
 
           console.log(`📦 处理账户 ${accountID} 的 ${holdingsCount} 个持仓`);
 
@@ -592,8 +618,10 @@ class DatabaseInitializer {
                 holding.description || ''
               ]);
 
-              successCount++;
+              result.successCount++;
             } catch (error) {
+              result.failedCount++;
+              result.failedItems.push({ id: `${accountID}-${holding.ticker}`, error: error.message });
               console.error(`❌ 插入持仓失败 ${accountID}-${holding.ticker}:`, error.message);
             }
           }
@@ -603,14 +631,10 @@ class DatabaseInitializer {
       // 提交事务
       await this.safeRun(connection, "COMMIT");
 
-      console.log(`✅ 批量同步完成: ${successCount} 个持仓记录成功插入`);
-      console.log(`📈 处理了 ${Object.keys(accounts).length} 个账户，共 ${totalHoldings} 个持仓`);
+      console.log(`✅ 批量同步完成: ${result.successCount} 个持仓记录成功插入`);
+      console.log(`📈 处理了 ${result.totalAccountsExpected} 个账户，共 ${result.totalHoldingsExpected} 个持仓`);
 
-      return {
-        accountCount: Object.keys(accounts).length,
-        totalHoldings: totalHoldings,
-        successCount: successCount
-      };
+      return result;
 
     } catch (error) {
       // 回滚事务
@@ -619,7 +643,7 @@ class DatabaseInitializer {
       } catch (rollbackError) {
         console.warn('回滚事务时出错:', rollbackError.message);
       }
-      
+
       console.error('❌ 批量同步失败:', error.message);
       throw error;
     } finally {
@@ -632,7 +656,7 @@ class DatabaseInitializer {
    */
   async initializeSampleData() {
     const connection = this.createConnection();
-    
+
     try {
       console.log('📝 开始初始化示例数据...');
 
@@ -642,9 +666,9 @@ class DatabaseInitializer {
         { ticker: '600519.SS', price: 1600.0, currency: 'CNY' },
         { ticker: 'APO', price: 105.25, currency: 'USD' },
         { ticker: 'BAM', price: 52.75, currency: 'USD' },
-        { ticker: 'US_TBill', price: 1.0, currency: 'USD' }  // 添加美国国债报价
+        { ticker: 'US_TBill', price: 1.0, currency: 'USD' }
       ];
-      
+
       for (const quote of sampleQuotations) {
         await this.safeRun(connection, `
           INSERT INTO tblQuotationTTM (ticker, price, currency)
@@ -659,7 +683,7 @@ class DatabaseInitializer {
         { fromCurrency: 'CNY', toCurrency: 'CNY', rate: 1.0 },
         { fromCurrency: 'THB', toCurrency: 'CNY', rate: 0.20 }
       ];
-      
+
       for (const rate of sampleRates) {
         await this.safeRun(connection, `
           INSERT INTO tblExchangeRateTTM (fromCurrency, toCurrency, rate)
@@ -677,11 +701,11 @@ class DatabaseInitializer {
   }
 
   /**
-   * 验证数据库状态
+   * 验证数据库状态，并对比预期值
    */
-  async verifyDatabase() {
+  async verifyDatabase(fullReport) {
     const connection = this.createConnection();
-    
+
     try {
       console.log('🔍 验证数据库状态...');
 
@@ -695,47 +719,55 @@ class DatabaseInitializer {
           (SELECT COUNT(*) FROM tblPeriodicBalanceSheet) as periodic_balance_count
       `);
 
-      console.log('📊 数据库统计:');
-      console.log(`  持仓记录: ${tableCounts[0]?.holdings_count || 0}`);
-      console.log(`  报价记录: ${tableCounts[0]?.quotations_count || 0}`);
-      console.log(`  汇率记录: ${tableCounts[0]?.rates_count || 0}`);
-      console.log(`  资产负债表记录: ${tableCounts[0]?.balance_count || 0}`);
-      console.log(`  其他资产记录: ${tableCounts[0]?.other_assets_count || 0}`);
-      console.log(`  定期资产负债表记录: ${tableCounts[0]?.periodic_balance_count || 0}`);
+      // Helper function to handle BigInt conversion safely
+      const getCount = (val) => {
+        if (typeof val === 'bigint') return Number(val);
+        return Number(val) || 0;
+      };
 
-      // 显示账户统计
-      const accountStats = await this.safeQuery(connection, `
-        SELECT accountID, COUNT(*) as holdings_count 
-        FROM tblAccountHoldings 
-        GROUP BY accountID 
-        ORDER BY holdings_count DESC
-      `);
+      const counts = {
+        holdings_count: getCount(tableCounts[0].holdings_count),
+        quotations_count: getCount(tableCounts[0].quotations_count),
+        rates_count: getCount(tableCounts[0].rates_count),
+        balance_count: getCount(tableCounts[0].balance_count),
+        other_assets_count: getCount(tableCounts[0].other_assets_count),
+        periodic_balance_count: getCount(tableCounts[0].periodic_balance_count)
+      };
 
-      console.log('\n👤 账户持仓统计:');
-      accountStats.forEach(stat => {
-        console.log(`  ${stat.accountID}: ${stat.holdings_count} 个持仓`);
-      });
+      // 验证持仓数量
+      const holdingsResult = fullReport.find(r => r.type === 'AccountHoldings');
+      if (holdingsResult) {
+        if (counts.holdings_count !== holdingsResult.successCount) {
+          console.error(`⚠️ 持仓数量不匹配! DuckDB: ${counts.holdings_count}, 成功插入: ${holdingsResult.successCount}`);
+          holdingsResult.validationError = `DB count (${counts.holdings_count}) != Success count (${holdingsResult.successCount})`;
+        } else {
+          console.log(`✅ 持仓数量验证通过 (${counts.holdings_count})`);
+        }
+      }
 
-      // 显示其他资产统计
-      const otherAssetsStats = await this.safeQuery(connection, `
-        SELECT assetType, COUNT(*) as count, 
-               SUM(cost) as totalCost, SUM(value) as totalValue,
-               SUM(deposit) as totalDeposit, SUM(loan) as totalLoan, SUM(debt) as totalDebt
-        FROM tblOtherAssets 
-        GROUP BY assetType
-      `);
+      // 验证资产负债表账户数
+      const balanceResult = fullReport.find(r => r.type === 'AccountBalanceSheet');
+      if (balanceResult) {
+        if (counts.balance_count !== balanceResult.successCount) {
+          console.error(`⚠️ 资产负债表账户数不匹配! DuckDB: ${counts.balance_count}, 成功插入: ${balanceResult.successCount}`);
+          balanceResult.validationError = `DB count (${counts.balance_count}) != Success count (${balanceResult.successCount})`;
+        } else {
+          console.log(`✅ 资产负债表账户数验证通过 (${counts.balance_count})`);
+        }
+      }
 
-      console.log('\n📦 其他资产统计:');
-      otherAssetsStats.forEach(stat => {
-        console.log(`  ${stat.assetType}: ${stat.count} 个记录`);
-        if (stat.totalCost > 0) console.log(`    总成本: ${stat.totalCost}`);
-        if (stat.totalValue > 0) console.log(`    总价值: ${stat.totalValue}`);
-        if (stat.totalDeposit > 0) console.log(`    总存款: ${stat.totalDeposit}`);
-        if (stat.totalLoan > 0) console.log(`    总贷款: ${stat.totalLoan}`);
-        if (stat.totalDebt > 0) console.log(`    总负债: ${stat.totalDebt}`);
-      });
+      // 验证其他资产总数 (Funds + Bank + Insurance + Properties)
+      const otherAssetsTotalExpected =
+        (fullReport.find(r => r.type === 'Funds')?.successCount || 0) +
+        (fullReport.find(r => r.type === 'BankAccounts')?.successCount || 0) +
+        (fullReport.find(r => r.type === 'Insurance')?.successCount || 0) +
+        (fullReport.find(r => r.type === 'Properties')?.successCount || 0);
 
-      return tableCounts[0];
+      if (counts.other_assets_count !== otherAssetsTotalExpected) {
+        console.error(`⚠️ 其他资产总数不匹配! DuckDB: ${counts.other_assets_count}, 预期: ${otherAssetsTotalExpected}`);
+      } else {
+        console.log(`✅ 其他资产总数验证通过 (${counts.other_assets_count})`);
+      }
 
     } catch (error) {
       console.error('❌ 数据库验证失败:', error.message);
@@ -746,36 +778,93 @@ class DatabaseInitializer {
 }
 
 /**
+ * 打印同步报告
+ */
+function printSyncReport(reports) {
+  console.log('\n==================================================');
+  console.log('📊 同步结果报告 (SYNC REPORT)');
+  console.log('==================================================');
+
+  let hasErrors = false;
+
+  reports.forEach(r => {
+    if (!r) return;
+
+    // 计算成功率
+    const total = r.totalExpected || r.totalHoldingsExpected || 0;
+    const rate = total > 0 ? ((r.successCount / total) * 100).toFixed(1) + '%' : 'N/A';
+
+    // 状态图标
+    let statusIcon = '✅';
+    if (r.failedCount > 0) statusIcon = '⚠️';
+    if (r.validationError) statusIcon = '❌';
+
+    console.log(`${statusIcon} [${r.type}]`);
+    console.log(`   总数: ${total} | 成功: ${r.successCount} | 失败: ${r.failedCount} | 成功率: ${rate}`);
+
+    if (r.validationError) {
+      console.log(`   🛑 验证错误: ${r.validationError}`);
+      hasErrors = true;
+    }
+
+    if (r.failedCount > 0) {
+      hasErrors = true;
+      console.log(`   🔴 失败项详情:`);
+      if (r.failedItems.length > 10) {
+        r.failedItems.slice(0, 10).forEach(item => console.log(`      - ID: ${item.id}, Err: ${item.error}`));
+        console.log(`      ... 以及其他 ${r.failedItems.length - 10} 项`);
+      } else {
+        r.failedItems.forEach(item => console.log(`      - ID: ${item.id}, Err: ${item.error}`));
+      }
+    }
+    console.log('--------------------------------------------------');
+  });
+
+  console.log('\n==================================================');
+  if (hasErrors) {
+    console.log('❌ 同步完成，但存在错误或警告，请检查上方日志。');
+  } else {
+    console.log('✅ 同步完美完成，数据完整性校验通过。');
+  }
+  console.log('==================================================\n');
+}
+
+/**
  * 主函数
  */
 async function main() {
   console.log('🚀 开始Firebase到DuckDB系统初始化...');
-  
+
   const initializer = new DatabaseInitializer();
+  const fullReport = [];
 
   try {
     // 1. 初始化数据库表结构
     await initializer.initializeDatabase();
-    
+
     // 2. 批量同步Firebase持仓数据
-    await initializer.batchSyncFromFirebase();
-    
+    const holdingsReport = await initializer.batchSyncFromFirebase();
+    fullReport.push(holdingsReport);
+
     // 3. 同步账户现金和负债数据到资产负债表
-    await initializer.syncAccountBalanceSheet();
-    
+    const balanceReport = await initializer.syncAccountBalanceSheet();
+    fullReport.push(balanceReport);
+
     // 4. 同步其他资产数据
-    await initializer.syncFundsData();
-    await initializer.syncBankAccountsData();
-    await initializer.syncInsuranceData();
-    await initializer.syncPropertiesData();
-    
+    fullReport.push(await initializer.syncFundsData());
+    fullReport.push(await initializer.syncBankAccountsData());
+    fullReport.push(await initializer.syncInsuranceData());
+    fullReport.push(await initializer.syncPropertiesData());
+
     // 5. 初始化示例数据（可选）
     await initializer.initializeSampleData();
-    
+
     // 6. 验证数据库状态
-    await initializer.verifyDatabase();
-    
-    console.log('\n🎉 系统初始化完成！');
+    await initializer.verifyDatabase(fullReport);
+
+    // 7. 打印最终报告
+    printSyncReport(fullReport);
+
     console.log('💡 现在可以启动增量同步服务和统计任务了');
 
   } catch (error) {

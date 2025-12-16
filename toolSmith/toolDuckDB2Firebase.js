@@ -12,7 +12,7 @@ admin.initializeApp({
 });
 
 const db = admin.database();
-const duckDbFilePath = './PortfolioData.duckdb';
+const duckDbFilePath = path.join(__dirname, '../duckDB/PortfolioData.duckdb');
 
 class DuckDBToFirebaseExporter {
   constructor() {
@@ -59,7 +59,7 @@ class DuckDBToFirebaseExporter {
     if (typeof key !== 'string') {
       key = String(key);
     }
-    
+
     // 替换 Firebase 不允许的字符
     return key
       .replace(/\./g, '_DOT_')
@@ -192,7 +192,7 @@ class DuckDBToFirebaseExporter {
             await firebaseRef.update(updates);
             successCount += Object.keys(updates).length;
             console.log(`✅ 批次 ${Math.floor(i / batchSize) + 1} 写入完成: ${Object.keys(updates).length} 条记录`);
-            
+
             // 显示一些编码示例（第一个批次）
             if (i === 0 && encodeKeys && Object.keys(updates).length > 0) {
               console.log('🔤 主键编码示例:');
@@ -205,7 +205,7 @@ class DuckDBToFirebaseExporter {
           } catch (error) {
             errorCount += batch.length;
             console.error(`❌ 批次 ${Math.floor(i / batchSize) + 1} 写入失败:`, error.message);
-            
+
             // 显示有问题的 key（第一个失败批次）
             if (errorCount === batch.length) {
               console.log('🔍 有问题的 key 示例:');
@@ -227,7 +227,7 @@ class DuckDBToFirebaseExporter {
             // 使用 push() 方法添加记录，Firebase 会自动生成 key
             const promises = batch.map(item => firebaseRef.push(item));
             await Promise.all(promises);
-            
+
             successCount += batch.length;
             console.log(`✅ 批次 ${Math.floor(i / batchSize) + 1} 写入完成: ${batch.length} 条记录`);
           } catch (error) {
@@ -255,14 +255,14 @@ class DuckDBToFirebaseExporter {
    */
   async exportTableToFirebase(tableName, firebasePath, options = {}) {
     const connection = this.createConnection();
-    
+
     try {
       console.log(`🚀 开始导出表 ${tableName} 到 Firebase...`);
 
       // 1. 获取表结构
       console.log('🔍 获取表结构...');
       const structure = await this.getTableStructure(connection, tableName);
-      
+
       if (structure.length === 0) {
         throw new Error(`表 ${tableName} 不存在或无法访问`);
       }
@@ -275,7 +275,7 @@ class DuckDBToFirebaseExporter {
       // 2. 获取表数据
       console.log('\n📊 获取表数据...');
       const data = await this.getTableData(connection, tableName);
-      
+
       if (data.length === 0) {
         console.warn(`⚠️ 表 ${tableName} 没有数据`);
         return { successCount: 0, errorCount: 0, total: 0 };
@@ -298,19 +298,8 @@ class DuckDBToFirebaseExporter {
       const autoPrimaryKey = primaryKeys.length > 0 ? primaryKeys[0] : null;
 
       // 5. 检查主键是否包含特殊字符
+      // 移除自动检测逻辑，默认始终开启编码，除非用户显式禁用
       let encodeKeys = true;
-      if (autoPrimaryKey && data.length > 0) {
-        const sampleKey = data[0][autoPrimaryKey];
-        if (sampleKey && typeof sampleKey === 'string') {
-          const hasSpecialChars = /[\.\#\$\/\[\]]/.test(sampleKey);
-          if (hasSpecialChars) {
-            console.log(`⚠️  检测到主键包含特殊字符，将自动编码`);
-          } else {
-            console.log(`✅ 主键格式良好，无需编码`);
-            encodeKeys = false;
-          }
-        }
-      }
 
       // 6. 写入 Firebase
       const exportOptions = {
@@ -346,7 +335,7 @@ class DuckDBToFirebaseExporter {
    */
   async listTables() {
     const connection = this.createConnection();
-    
+
     try {
       const tables = await this.safeQuery(connection, `
         SELECT name FROM sqlite_master 
@@ -375,15 +364,15 @@ class DuckDBToFirebaseExporter {
   async testFirebaseConnection() {
     try {
       console.log('🔗 测试 Firebase 连接...');
-      
+
       const testRef = db.ref('_test_connection');
       await testRef.set({
         timestamp: new Date().toISOString(),
         message: 'Test connection from DuckDB2Firebase'
       });
-      
+
       await testRef.remove();
-      
+
       console.log('✅ Firebase 连接正常');
       return true;
 
@@ -457,7 +446,7 @@ function parseArgs() {
 
   for (let i = 0; i < args.length; i++) {
     const arg = args[i];
-    
+
     if (arg === '--list-tables') {
       result.command = 'list-tables';
     } else if (arg === '--test-connection') {
@@ -487,7 +476,7 @@ function parseArgs() {
  */
 async function main() {
   console.log('🚀 DuckDB 到 Firebase 数据导出工具启动...');
-  
+
   const exporter = new DuckDBToFirebaseExporter();
   const args = parseArgs();
 

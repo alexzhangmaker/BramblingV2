@@ -2,7 +2,9 @@
 const duckdb = require('duckdb');
 const nodeCron = require('node-cron');
 
-const duckDbFilePath = './PortfolioData.duckdb';
+const path = require('path');
+
+const duckDbFilePath = path.join(__dirname, 'duckDB/PortfolioData.duckdb');
 
 class PeriodicalBalanceSheetService {
   constructor() {
@@ -63,10 +65,10 @@ class PeriodicalBalanceSheetService {
    */
   async updateOtherAssetsCNYValue() {
     const connection = this.createConnection();
-    
+
     try {
       console.log('💰 开始更新其他资产的人民币价值...');
-      
+
       await this.safeRun(connection, "BEGIN TRANSACTION");
 
       // 更新其他资产的CNY价值
@@ -98,7 +100,7 @@ class PeriodicalBalanceSheetService {
       `;
 
       const result = await this.safeRun(connection, updateQuery);
-      
+
       // 获取更新统计
       const stats = await this.safeQuery(connection, `
         SELECT 
@@ -134,7 +136,7 @@ class PeriodicalBalanceSheetService {
       } catch (rollbackError) {
         console.warn('回滚事务时出错:', rollbackError.message);
       }
-      
+
       console.error('❌ 更新其他资产人民币价值失败:', error.message);
       throw error;
     } finally {
@@ -147,10 +149,10 @@ class PeriodicalBalanceSheetService {
    */
   async updateAccountBalanceSheetCNYValue() {
     const connection = this.createConnection();
-    
+
     try {
       console.log('💰 开始更新账户资产负债表的人民币价值...');
-      
+
       await this.safeRun(connection, "BEGIN TRANSACTION");
 
       // 更新账户资产负债表的CNY价值
@@ -170,7 +172,7 @@ class PeriodicalBalanceSheetService {
       `;
 
       await this.safeRun(connection, updateQuery);
-      
+
       // 获取更新统计
       const stats = await this.safeQuery(connection, `
         SELECT 
@@ -195,7 +197,7 @@ class PeriodicalBalanceSheetService {
       } catch (rollbackError) {
         console.warn('回滚事务时出错:', rollbackError.message);
       }
-      
+
       console.error('❌ 更新账户资产负债表人民币价值失败:', error.message);
       throw error;
     } finally {
@@ -209,10 +211,10 @@ class PeriodicalBalanceSheetService {
    */
   async calculatePeriodicBalanceSheet() {
     const connection = this.createConnection();
-    
+
     try {
       console.log('📊 开始计算定期资产负债表...');
-      
+
       // 先更新所有CNY价值
       await this.updateOtherAssetsCNYValue();
       await this.updateAccountBalanceSheetCNYValue();
@@ -303,9 +305,9 @@ class PeriodicalBalanceSheetService {
       }
 
       const data = balanceSheetData[0];
-      
+
       // 计算总资产净值
-      const totalNetValueCNY = 
+      const totalNetValueCNY =
         data.securitiesValueCNY +
         data.insuranceValueCNY +
         data.fundsValueCNY +
@@ -354,9 +356,9 @@ class PeriodicalBalanceSheetService {
       console.log(`   总资产净值: ${totalNetValueCNY.toFixed(2)} CNY`);
 
       // 显示资产构成比例
-      const totalAssets = data.securitiesValueCNY + data.insuranceValueCNY + data.fundsValueCNY + 
-                         data.propertiesValueCNY + data.bankDepositsCNY + data.totalCashCNY;
-      
+      const totalAssets = data.securitiesValueCNY + data.insuranceValueCNY + data.fundsValueCNY +
+        data.propertiesValueCNY + data.bankDepositsCNY + data.totalCashCNY;
+
       if (totalAssets > 0) {
         console.log('\n📊 资产构成比例:');
         console.log(`   证券账户: ${((data.securitiesValueCNY / totalAssets) * 100).toFixed(2)}%`);
@@ -379,7 +381,7 @@ class PeriodicalBalanceSheetService {
       } catch (rollbackError) {
         console.warn('回滚事务时出错:', rollbackError.message);
       }
-      
+
       console.error('❌ 定期资产负债表计算失败:', error.message);
       throw error;
     } finally {
@@ -392,7 +394,7 @@ class PeriodicalBalanceSheetService {
    */
   async debugOtherAssets() {
     const connection = this.createConnection();
-    
+
     try {
       console.log('🔍 调试其他资产数据...');
 
@@ -417,7 +419,7 @@ class PeriodicalBalanceSheetService {
       `);
 
       console.log(`📊 找到 ${assets.length} 个其他资产记录:`);
-      
+
       assets.forEach(asset => {
         console.log(`\n  ${asset.assetType} - ${asset.assetID}:`);
         console.log(`    货币: ${asset.currency}`);
@@ -445,7 +447,7 @@ class PeriodicalBalanceSheetService {
    */
   async getHistoricalBalanceSheet(days = 30) {
     const connection = this.createConnection();
-    
+
     try {
       console.log(`📈 获取最近 ${days} 天资产负债表历史数据...`);
 
@@ -478,10 +480,10 @@ class PeriodicalBalanceSheetService {
         console.log('\n📅 历史数据摘要:');
         const latest = history[0];
         const oldest = history[history.length - 1];
-        
+
         const netValueChange = latest.totalNetValueCNY - oldest.totalNetValueCNY;
         const changePercentage = oldest.totalNetValueCNY > 0 ? (netValueChange / oldest.totalNetValueCNY) * 100 : 0;
-        
+
         console.log(`   最新净值: ${latest.totalNetValueCNY.toFixed(2)} CNY (${latest.periodDate})`);
         console.log(`   最早净值: ${oldest.totalNetValueCNY.toFixed(2)} CNY (${oldest.periodDate})`);
         console.log(`   期间变化: ${netValueChange.toFixed(2)} CNY (${changePercentage.toFixed(2)}%)`);
@@ -502,7 +504,7 @@ class PeriodicalBalanceSheetService {
    */
   async generateBalanceSheetReport(startDate, endDate) {
     const connection = this.createConnection();
-    
+
     try {
       console.log(`📋 生成资产负债表报告 ${startDate} 至 ${endDate}...`);
 
@@ -533,9 +535,9 @@ class PeriodicalBalanceSheetService {
       // 计算统计信息
       const firstRecord = report[0];
       const lastRecord = report[report.length - 1];
-      
+
       const netValueChange = lastRecord.totalNetValueCNY - firstRecord.totalNetValueCNY;
-      const changePercentage = firstRecord.totalNetValueCNY > 0 ? 
+      const changePercentage = firstRecord.totalNetValueCNY > 0 ?
         (netValueChange / firstRecord.totalNetValueCNY) * 100 : 0;
 
       console.log('\n📈 报告统计:');
@@ -561,7 +563,7 @@ class PeriodicalBalanceSheetService {
    */
   startPeriodicBalanceSheetTask(cronExpression = '0 0 18 * * *') { // 默认每天18:00执行
     console.log(`⏰ 启动定期资产负债表任务，计划: ${cronExpression}`);
-    
+
     nodeCron.schedule(cronExpression, async () => {
       console.log('🚀 定时执行资产负债表计算任务...');
       try {
@@ -571,7 +573,7 @@ class PeriodicalBalanceSheetService {
         console.error('❌ 定时资产负债表任务失败:', error.message);
       }
     });
-    
+
     console.log('✅ 定期资产负债表任务已启动');
   }
 
@@ -594,7 +596,7 @@ class PeriodicalBalanceSheetService {
    */
   async validateBalanceSheetData() {
     const connection = this.createConnection();
-    
+
     try {
       console.log('🔍 验证资产负债表数据...');
 
@@ -655,7 +657,7 @@ class PeriodicalBalanceSheetService {
  */
 async function main() {
   console.log('🚀 启动定期资产负债表服务...');
-  
+
   const balanceSheetService = new PeriodicalBalanceSheetService();
 
   // 注册关闭信号
@@ -695,20 +697,20 @@ async function main() {
       // 默认启动定时任务
       console.log('⏰ 启动定时资产负债表计算任务...');
       balanceSheetService.startPeriodicBalanceSheetTask('0 0 18 * * *'); // 每天18:00执行
-      
+
       // 立即执行一次
       console.log('⚡ 立即执行一次资产负债表计算...');
       await balanceSheetService.executeBalanceSheetImmediately();
-      
+
       console.log('✅ 定期资产负债表服务运行中...');
       console.log('💡 使用 Ctrl+C 停止服务');
-      
+
       // 保持进程运行
       setInterval(() => {
         // 心跳检测，保持进程活跃
       }, 60000);
     }
-    
+
   } catch (error) {
     console.error('❌ 定期资产负债表服务启动失败:', error.message);
     process.exit(1);

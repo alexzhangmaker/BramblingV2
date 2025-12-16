@@ -1,9 +1,11 @@
 // svcUpdateQuote.js (修复版本)
 const duckdb = require('duckdb');
 const nodeCron = require('node-cron');
-const APIModuleYahoo = require("./API_YFinance") ;
+const APIModuleYahoo = require("./API_YFinance");
 
-const duckDbFilePath = './portfolioData.duckdb';
+const path = require('path');
+
+const duckDbFilePath = path.join(__dirname, 'duckDB/PortfolioData.duckdb');
 
 class QuoteUpdateService {
   constructor() {
@@ -66,14 +68,14 @@ class QuoteUpdateService {
   async _API_FetchQuote(ticker) {
     // 模拟API调用延迟
 
-    if(ticker=="US_TBill")return 1 ;
-    if(ticker == "515080.SS" || ticker == "515180.SS") return 1 ;
-    if(ticker =="BF B")ticker = "BF-B" ;
-    if(ticker =="BRK B")ticker = "BRK-B" ;
+    if (ticker == "US_TBill") return 1;
+    if (ticker == "515080.SS" || ticker == "515180.SS") return 1;
+    if (ticker == "BF B") ticker = "BF-B";
+    if (ticker == "BRK B") ticker = "BRK-B";
 
     let basePrice = await APIModuleYahoo.API_FetchQuote(ticker);
     if (ticker.endsWith('.L')) {
-      basePrice = basePrice/100; // LSE股价调整为英镑
+      basePrice = basePrice / 100; // LSE股价调整为英镑
     }
     /*
     if (ticker.endsWith('.HK')) {
@@ -92,10 +94,10 @@ class QuoteUpdateService {
     
     console.log(`📡 获取 ${ticker} 报价: ${price.toFixed(2)}`);
     */
-    
+
     //return parseFloat(price.toFixed(4));
-    console.log(`${ticker}===>${basePrice}`) ;
-    return basePrice ;
+    console.log(`${ticker}===>${basePrice}`);
+    return basePrice;
   }
 
   /**
@@ -103,7 +105,7 @@ class QuoteUpdateService {
    */
   async getAllTickers() {
     const connection = this.createConnection();
-    
+
     try {
       const result = await this.safeQuery(connection, `
         SELECT DISTINCT ticker 
@@ -112,9 +114,9 @@ class QuoteUpdateService {
         AND ticker NOT LIKE 'US_TBill'
         ORDER BY ticker
       `);
-      
+
       return result.map(row => row.ticker);
-      
+
     } catch (error) {
       console.error('❌ 获取ticker列表失败:', error.message);
       return [];
@@ -134,14 +136,14 @@ class QuoteUpdateService {
 
     this.isUpdating = true;
     const connection = this.createConnection();
-    
+
     try {
       console.log('🔄 开始更新报价数据...');
-      
+
       // 获取所有需要更新的ticker
       const tickers = await this.getAllTickers();
       console.log(`📊 找到 ${tickers.length} 个需要更新报价的标的`);
-      
+
       if (tickers.length === 0) {
         console.log('ℹ️ 没有找到需要更新报价的标的');
         return;
@@ -153,53 +155,53 @@ class QuoteUpdateService {
       let successCount = 0;
       let errorCount = 0;
       const batchSize = 5; // 控制并发数量，避免API限制
-      
+
       // 分批处理，避免过多并发请求
       for (let i = 0; i < tickers.length; i += batchSize) {
         const batch = tickers.slice(i, i + batchSize);
-        console.log(`📦 处理批次 ${Math.floor(i/batchSize) + 1}/${Math.ceil(tickers.length/batchSize)}: ${batch.join(', ')}`);
-        
+        console.log(`📦 处理批次 ${Math.floor(i / batchSize) + 1}/${Math.ceil(tickers.length / batchSize)}: ${batch.join(', ')}`);
+
         // 并行获取报价
         const batchPromises = batch.map(async (ticker) => {
           try {
             //const price = await this._API_FetchQuote(ticker);
-            
+
             // 获取货币信息（从持仓表中获取）
-            const currencyResult = await this.safeQuery(connection, 
-              "SELECT currency FROM tblAccountHoldings WHERE ticker = ? LIMIT 1", 
+            const currencyResult = await this.safeQuery(connection,
+              "SELECT currency FROM tblAccountHoldings WHERE ticker = ? LIMIT 1",
               [ticker]
             );
-            
+
             const currency = currencyResult[0]?.currency || 'USD';
 
-            let price = 0 ;
-            if(currency == 'GBP'){
-              let tickerLSE = `${ticker}.L` ;
-              if(ticker=='INPPl'){tickerLSE = 'INPP.L' ;}
-              price = await this._API_FetchQuote(tickerLSE);
-            }else if(currency == 'CAD'){
-              let tickerCA =`${ticker}.TO` ;
-              if(ticker =='ENB.PR.B'){
-                price=18.01 ;
-              }else if(ticker =='FTS.PR.G'){
-                price = 22.31 ;
-              }else{
+            let price = 0;
+            if (currency == 'GBP') {
+              //let tickerLSE = `${ticker}.L`;
+              //if (ticker == 'INPPl') { tickerLSE = 'INPP.L'; }
+              price = await this._API_FetchQuote(ticker);
+            } else if (currency == 'CAD') {
+              let tickerCA = `${ticker}.TO`;
+              if (ticker == 'ENB.PR.B') {
+                price = 18.01;
+              } else if (ticker == 'FTS.PR.G') {
+                price = 22.31;
+              } else {
                 price = await this._API_FetchQuote(tickerCA);
               }
-            }else{
+            } else {
               price = await this._API_FetchQuote(ticker);
             }
-            
-            
+
+
             // 插入或更新报价
             await this.safeRun(connection, `
               INSERT OR REPLACE INTO tblQuotationTTM (ticker, price, currency, lastUpdated)
               VALUES (?, ?, ?, CURRENT_TIMESTAMP)
             `, [ticker, price, currency]);
-            
+
             successCount++;
             return { ticker, success: true, price };
-            
+
           } catch (error) {
             errorCount++;
             console.error(`❌ 更新 ${ticker} 报价失败:`, error.message);
@@ -209,12 +211,12 @@ class QuoteUpdateService {
 
         // 等待当前批次完成
         const batchResults = await Promise.all(batchPromises);
-        
+
         // 显示批次结果
         const batchSuccess = batchResults.filter(r => r.success).length;
         const batchError = batchResults.filter(r => !r.success).length;
         console.log(`   ✅ 成功: ${batchSuccess}, ❌ 失败: ${batchError}`);
-        
+
         // 批次间延迟，避免API限制
         if (i + batchSize < tickers.length) {
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -225,7 +227,7 @@ class QuoteUpdateService {
       await this.safeRun(connection, "COMMIT");
 
       console.log(`✅ 报价更新完成: ${successCount} 成功, ${errorCount} 失败`);
-      
+
       // 更新统计信息
       await this.updateQuoteStats(connection);
 
@@ -242,7 +244,7 @@ class QuoteUpdateService {
       } catch (rollbackError) {
         console.warn('回滚事务时出错:', rollbackError.message);
       }
-      
+
       console.error('❌ 报价更新失败:', error.message);
       throw error;
     } finally {
@@ -307,15 +309,15 @@ class QuoteUpdateService {
    */
   async getQuote(ticker) {
     const connection = this.createConnection();
-    
+
     try {
-      const result = await this.safeQuery(connection, 
-        "SELECT price, currency, lastUpdated FROM tblQuotationTTM WHERE ticker = ?", 
+      const result = await this.safeQuery(connection,
+        "SELECT price, currency, lastUpdated FROM tblQuotationTTM WHERE ticker = ?",
         [ticker]
       );
-      
+
       return result[0] || null;
-      
+
     } catch (error) {
       console.error(`❌ 获取 ${ticker} 报价失败:`, error.message);
       return null;
@@ -329,15 +331,15 @@ class QuoteUpdateService {
    */
   async getRecentQuotes(limit = 10) {
     const connection = this.createConnection();
-    
+
     try {
-      const result = await this.safeQuery(connection, 
-        "SELECT ticker, price, currency, lastUpdated FROM tblQuotationTTM ORDER BY lastUpdated DESC LIMIT ?", 
+      const result = await this.safeQuery(connection,
+        "SELECT ticker, price, currency, lastUpdated FROM tblQuotationTTM ORDER BY lastUpdated DESC LIMIT ?",
         [limit]
       );
-      
+
       return result;
-      
+
     } catch (error) {
       console.error('❌ 获取最近报价失败:', error.message);
       return [];
@@ -351,7 +353,7 @@ class QuoteUpdateService {
    */
   startScheduledTask(cronExpression = '0 */5 * * * *') { // 默认每5分钟执行一次
     console.log(`⏰ 启动定时报价更新任务，计划: ${cronExpression}`);
-    
+
     nodeCron.schedule(cronExpression, async () => {
       console.log('\n🔄 定时执行报价更新...');
       try {
@@ -361,7 +363,7 @@ class QuoteUpdateService {
         console.error('❌ 定时报价更新失败:', error.message);
       }
     });
-    
+
     console.log('✅ 定时报价更新任务已启动');
   }
 
@@ -392,15 +394,15 @@ class QuoteUpdateService {
  */
 async function main() {
   console.log('🚀 启动报价更新服务...');
-  
+
   const quoteService = new QuoteUpdateService();
-  
+
   // 注册关闭信号
   process.on('SIGINT', () => {
     quoteService.shutdown();
     process.exit(0);
   });
-  
+
   process.on('SIGTERM', () => {
     quoteService.shutdown();
     process.exit(0);
@@ -414,7 +416,7 @@ async function main() {
       console.log('✅ 立即执行完成，退出进程');
       process.exit(0); // 立即执行完成后退出
     }
-    
+
     // 如果指定了单个ticker查询
     const tickerIndex = process.argv.indexOf('--ticker');
     if (tickerIndex !== -1 && process.argv[tickerIndex + 1]) {
@@ -428,7 +430,7 @@ async function main() {
       }
       process.exit(0);
     }
-    
+
     // 如果指定了显示最近报价
     if (process.argv.includes('--recent')) {
       const limit = process.argv[process.argv.indexOf('--recent') + 1] || 10;
@@ -439,19 +441,19 @@ async function main() {
       });
       process.exit(0);
     }
-    
+
     // 如果没有特殊参数，启动定时任务（默认每5分钟执行一次）
     const cronExpression = process.env.QUOTE_UPDATE_CRON || '0 */5 * * * *';
     quoteService.startScheduledTask(cronExpression);
-    
+
     console.log('✅ 报价更新服务运行中...');
     console.log('💡 使用 Ctrl+C 停止服务');
-    
+
     // 保持进程运行
     setInterval(() => {
       // 心跳检测，保持进程活跃
     }, 60000);
-    
+
   } catch (error) {
     console.error('❌ 报价更新服务启动失败:', error.message);
     quoteService.shutdown();

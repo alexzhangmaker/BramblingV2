@@ -3,6 +3,7 @@ class ReportApp {
         this.auth = firebase.auth();
         this.db = firebase.database();
         this.currentUser = null;
+        this.fullReportData = {}; // [新增] 初始化完整数据容器
         this.reportData = {};
         this.grid = null;
         
@@ -113,7 +114,16 @@ class ReportApp {
         try {
             this.showMessage('正在加载报表数据...', '');
             const snapshot = await this.db.ref('reports/holdings').once('value');
+            
+            /*
             this.reportData = snapshot.val() || {};
+            */
+            // --- 修改开始 ---
+            const data = snapshot.val() || {};
+            this.fullReportData = data; // [新增] 保存一份永久的完整数据备份
+            this.reportData = data;     // 当前用于显示的数据
+            // --- 修改结束 ---
+
             this.initializeGrid();
             this.updateSummary();
             this.showMessage('✅ 数据加载成功', 'success');
@@ -233,7 +243,13 @@ class ReportApp {
         const plFilter = document.getElementById('pl-filter').value;
         const searchText = document.getElementById('search-input').value.toLowerCase();
 
-        const filteredData = Object.entries(this.reportData).filter(([key, holding]) => {
+        // --- 修改开始 ---
+        // 注意：这里改为从 this.fullReportData 进行 filter
+        // 如果 this.fullReportData 为空(尚未加载)，则使用空对象
+        const sourceData = this.fullReportData || {};
+
+        //const filteredData = Object.entries(this.reportData).filter(([key, holding]) => {
+        const filteredData = Object.entries(sourceData).filter(([key, holding]) => {
             // 货币筛选
             if (currencyFilter && holding.currency !== currencyFilter) {
                 return false;

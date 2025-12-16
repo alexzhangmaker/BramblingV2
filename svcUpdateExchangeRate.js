@@ -1,9 +1,11 @@
 // svcUpdateExchangeRate.js
 const duckdb = require('duckdb');
 const nodeCron = require('node-cron');
-const APIModuleYahoo = require("./API_YFinance") ;
+const APIModuleYahoo = require("./API_YFinance");
 
-const duckDbFilePath = './portfolioData.duckdb';
+const path = require('path');
+
+const duckDbFilePath = path.join(__dirname, 'duckDB/PortfolioData.duckdb');
 
 class ExchangeRateUpdateService {
   constructor() {
@@ -67,8 +69,8 @@ class ExchangeRateUpdateService {
    * 在实际使用中，这里应该替换为真实的API调用
    */
   async API_FetchExRate(from, to) {
-    let retValue = await await APIModuleYahoo.API_FetchExRate(from,to) ;
-    return retValue ;
+    let retValue = await await APIModuleYahoo.API_FetchExRate(from, to);
+    return retValue;
     /*
     // 模拟API调用延迟
     await new Promise(resolve => setTimeout(resolve, 200 + Math.random() * 300));
@@ -134,17 +136,17 @@ class ExchangeRateUpdateService {
 
     this.isUpdating = true;
     const connection = this.createConnection();
-    
+
     try {
       console.log('🔄 开始更新汇率数据...');
       console.log(`📊 支持 ${this.supportedCurrencies.length} 种货币到 ${this.baseCurrency} 的汇率`);
-      
+
       // 开始事务
       await this.safeRun(connection, "BEGIN TRANSACTION");
 
       let successCount = 0;
       let errorCount = 0;
-      
+
       // 为每种货币获取到CNY的汇率
       for (const fromCurrency of this.supportedCurrencies) {
         try {
@@ -152,27 +154,27 @@ class ExchangeRateUpdateService {
           if (fromCurrency === this.baseCurrency) {
             continue;
           }
-          
+
           const rate = await this.API_FetchExRate(fromCurrency, this.baseCurrency);
-          
+
           // 插入或更新汇率
           await this.safeRun(connection, `
             INSERT OR REPLACE INTO tblExchangeRateTTM (fromCurrency, toCurrency, rate, lastUpdated)
             VALUES (?, ?, ?, CURRENT_TIMESTAMP)
           `, [fromCurrency, this.baseCurrency, rate]);
-          
+
           successCount++;
           console.log(`✅ ${fromCurrency} -> ${this.baseCurrency}: ${rate.toFixed(4)}`);
-          
+
         } catch (error) {
           errorCount++;
           console.error(`❌ 更新 ${fromCurrency} -> ${this.baseCurrency} 汇率失败:`, error.message);
         }
-        
+
         // 添加小延迟，避免API限制
         await new Promise(resolve => setTimeout(resolve, 500));
       }
-      
+
       // 添加CNY到CNY的汇率（总是1.0）
       try {
         await this.safeRun(connection, `
@@ -190,7 +192,7 @@ class ExchangeRateUpdateService {
       await this.safeRun(connection, "COMMIT");
 
       console.log(`✅ 汇率更新完成: ${successCount} 成功, ${errorCount} 失败`);
-      
+
       // 更新统计信息
       await this.updateExchangeRateStats(connection);
 
@@ -207,7 +209,7 @@ class ExchangeRateUpdateService {
       } catch (rollbackError) {
         console.warn('回滚事务时出错:', rollbackError.message);
       }
-      
+
       console.error('❌ 汇率更新失败:', error.message);
       throw error;
     } finally {
@@ -270,15 +272,15 @@ class ExchangeRateUpdateService {
    */
   async getExchangeRate(from, to) {
     const connection = this.createConnection();
-    
+
     try {
-      const result = await this.safeQuery(connection, 
-        "SELECT rate, lastUpdated FROM tblExchangeRateTTM WHERE fromCurrency = ? AND toCurrency = ?", 
+      const result = await this.safeQuery(connection,
+        "SELECT rate, lastUpdated FROM tblExchangeRateTTM WHERE fromCurrency = ? AND toCurrency = ?",
         [from, to]
       );
-      
+
       return result[0] || null;
-      
+
     } catch (error) {
       console.error(`❌ 获取 ${from}->${to} 汇率失败:`, error.message);
       return null;
@@ -292,14 +294,14 @@ class ExchangeRateUpdateService {
    */
   async getAllExchangeRates() {
     const connection = this.createConnection();
-    
+
     try {
-      const result = await this.safeQuery(connection, 
+      const result = await this.safeQuery(connection,
         "SELECT fromCurrency, toCurrency, rate, lastUpdated FROM tblExchangeRateTTM ORDER BY fromCurrency, toCurrency"
       );
-      
+
       return result;
-      
+
     } catch (error) {
       console.error('❌ 获取所有汇率失败:', error.message);
       return [];
@@ -313,7 +315,7 @@ class ExchangeRateUpdateService {
    */
   startScheduledTask(cronExpression = '0 0 */6 * * *') { // 默认每6小时执行一次
     console.log(`⏰ 启动定时汇率更新任务，计划: ${cronExpression}`);
-    
+
     nodeCron.schedule(cronExpression, async () => {
       console.log('\n🔄 定时执行汇率更新...');
       try {
@@ -323,7 +325,7 @@ class ExchangeRateUpdateService {
         console.error('❌ 定时汇率更新失败:', error.message);
       }
     });
-    
+
     console.log('✅ 定时汇率更新任务已启动');
   }
 
@@ -371,15 +373,15 @@ class ExchangeRateUpdateService {
  */
 async function main() {
   console.log('🚀 启动汇率更新服务...');
-  
+
   const exchangeRateService = new ExchangeRateUpdateService();
-  
+
   // 注册关闭信号
   process.on('SIGINT', () => {
     exchangeRateService.shutdown();
     process.exit(0);
   });
-  
+
   process.on('SIGTERM', () => {
     exchangeRateService.shutdown();
     process.exit(0);
@@ -389,7 +391,7 @@ async function main() {
     // 启动定时任务（默认每6小时执行一次）
     const cronExpression = process.env.EXCHANGE_RATE_CRON || '0 0 */6 * * *';
     exchangeRateService.startScheduledTask(cronExpression);
-    
+
     // 如果指定了立即执行参数
     if (process.argv.includes('--immediate')) {
       console.log('⚡ 立即执行汇率更新...');
@@ -397,7 +399,7 @@ async function main() {
       console.log('✅ 立即执行完成，退出进程');
       process.exit(0); // 立即执行完成后退出
     }
-    
+
     // 如果指定了查询特定汇率
     const fromIndex = process.argv.indexOf('--from');
     const toIndex = process.argv.indexOf('--to');
@@ -413,7 +415,7 @@ async function main() {
       }
       process.exit(0);
     }
-    
+
     // 如果指定了显示所有汇率
     if (process.argv.includes('--list')) {
       console.log('🔍 显示所有汇率:');
@@ -423,7 +425,7 @@ async function main() {
       });
       process.exit(0);
     }
-    
+
     // 如果指定了添加新货币
     const addIndex = process.argv.indexOf('--add-currency');
     if (addIndex !== -1 && process.argv[addIndex + 1]) {
@@ -432,15 +434,15 @@ async function main() {
       console.log(`✅ 已添加货币 ${currency}，下次更新时将包含该货币`);
       process.exit(0);
     }
-    
+
     console.log('✅ 汇率更新服务运行中...');
     console.log('💡 使用 Ctrl+C 停止服务');
-    
+
     // 保持进程运行
     setInterval(() => {
       // 心跳检测，保持进程活跃
     }, 60000);
-    
+
   } catch (error) {
     console.error('❌ 汇率更新服务启动失败:', error.message);
     exchangeRateService.shutdown();

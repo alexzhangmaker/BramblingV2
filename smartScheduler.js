@@ -8,41 +8,47 @@ const scripts = [
     name: '更新Quote',
     command: 'node',
     args: ['svcUpdateQuote.js', '--immediate'],
-    logFile: 'svcCalling.log'
+    logFile: 'svcCalling.log',
+    continueOnError: true // 即使失败也继续，使用旧价格
   },
   {
     name: '更新ExchangeRate',
     command: 'node',
     args: ['svcUpdateExchangeRate.js', '--immediate'],
-    delay: 5 * 60 * 1000,
-    logFile: 'svcCalling.log'
+    delay: 1 * 60 * 1000, // 缩短等待时间
+    logFile: 'svcCalling.log',
+    continueOnError: true // 即使失败也继续，使用旧汇率
   },
   {
     name: '汇总计算Holding数据',
     command: 'node',
     args: ['svcHoldingAggregationTask.js', '--immediate'],
-    delay: 5 * 60 * 1000,
-    logFile: 'svcCalling.log'
-  },  
+    delay: 1 * 60 * 1000,
+    logFile: 'svcCalling.log',
+    continueOnError: false // 核心计算失败则后续导出无意义
+  },
   {
     name: '资产负债表更新',
     command: 'node',
     args: ['svcPeriodicalBalanceSheetAll.js', '--immediate'],
-    delay: 5 * 60 * 1000,
-    logFile: 'svcCalling.log'
+    delay: 1 * 60 * 1000,
+    logFile: 'svcCalling.log',
+    continueOnError: true // 允许失败
   },
   {
     name: 'tblHoldingAggrView导出到Firebase',
-    command: 'node', 
-    args: ['toolDuckDB2Firebase.js', 'tblHoldingAggrView', 'reports/holdings', '--no-key-check'],
-    delay: 2 * 60 * 1000,
-    logFile: 'firebase-export.log'
+    command: 'node',
+    args: ['toolSmith/toolDuckDB2Firebase.js', 'tblHoldingAggrView', 'reports/holdings', '--no-key-check'], // 修正路径
+    delay: 1 * 60 * 1000,
+    logFile: 'firebase-export.log',
+    continueOnError: true
   },
   {
     name: '资产负债表导出到Firebase',
-    command: 'node', 
-    args: ['toolDuckDB2Firebase.js', 'tblPeriodicBalanceSheet', 'reports/balanceSheet'],
-    logFile: 'firebase-export.log'
+    command: 'node',
+    args: ['toolSmith/toolDuckDB2Firebase.js', 'tblPeriodicBalanceSheet', 'reports/balanceSheet'], // 修正路径
+    logFile: 'firebase-export.log',
+    continueOnError: true
   }
 ];
 
@@ -59,7 +65,7 @@ class SmartScheduler {
       return require('./dbLocker');
     } catch (error) {
       logger.warn('⚠️  dbLocker 模块未找到，使用内存锁替代');
-      
+
       // 简单的内存锁实现
       return {
         locks: new Map(),
@@ -88,7 +94,7 @@ class SmartScheduler {
     }
 
     const now = new Date();
-    
+
     // 如果是第一次运行
     if (!this.lastRun) {
       logger.info('首次运行调度器');
@@ -98,7 +104,7 @@ class SmartScheduler {
     // 检查是否错过了今天的8:00执行
     const today8AM = new Date();
     today8AM.setHours(8, 0, 0, 0);
-    
+
     const lastRunDate = new Date(this.lastRun);
     const shouldRunToday = now >= today8AM && lastRunDate < today8AM;
 
@@ -125,7 +131,7 @@ class SmartScheduler {
 
     this.isRunning = true;
     const runStartTime = new Date();
-    
+
     logger.info('='.repeat(60));
     if (this.immediateMode) {
       logger.info(`🚀 立即执行任务序列 - ${runStartTime.toLocaleString('zh-CN')}`);
@@ -138,34 +144,43 @@ class SmartScheduler {
     try {
       for (let i = 0; i < scripts.length; i++) {
         const script = scripts[i];
-        
+
         // 获取数据库锁（如果可用）
         const lockAcquired = await this.dbLocker.acquireLock(script.name, 15 * 60 * 1000);
         if (!lockAcquired) {
           logger.warn(`⏭️ 跳过任务: ${script.name} (锁被占用)`);
           continue;
         }
-        
+
         try {
           await this.executeScript(script);
           logger.info(`✅ ${script.name} 完成`);
-          
-          // 如果不是最后一个脚本，且设置了延迟，则等待
-          if (i < scripts.length - 1 && scripts[i + 1].delay) {
-            const nextScript = scripts[i + 1];
-            const delayMinutes = scripts[i + 1].delay / 60000;
-            logger.info(`⏳ 等待 ${delayMinutes} 分钟，下一个任务: ${nextScript.name}`);
-            await this.delay(scripts[i + 1].delay);
+
+        } catch (scriptError) {
+          if (script.continueOnError) {
+            logger.error(`❌ ${script.name} 失败，但配置为继续执行: ${scriptError.message}`);
+          } else {
+            logger.error(`⛔ ${script.name} 失败，且为核心任务，终止序列`);
+            throw scriptError; // 核心任务失败，中断整个流程
           }
         } finally {
           // 释放数据库锁
           this.dbLocker.releaseLock(script.name);
+
+          // 如果不是最后一个脚本，且设置了延迟，则等待 (不管成功失败，只要继续执行就需要等待)
+          // 只有在当前脚本没有抛出导致中断的错误时才会执行到这里
+          if (i < scripts.length - 1 && scripts[i + 1].delay) {
+            const nextScript = scripts[i + 1];
+            const delayMinutes = (scripts[i + 1].delay / 60000).toFixed(1);
+            logger.info(`⏳ 等待 ${delayMinutes} 分钟，下一个任务: ${nextScript.name}`);
+            await this.delay(scripts[i + 1].delay);
+          }
         }
       }
 
       this.lastRun = new Date();
       const totalTime = (Date.now() - runStartTime.getTime()) / 60000;
-      
+
       logger.info('='.repeat(60));
       logger.info(`🎉 所有任务执行完成！总耗时: ${totalTime.toFixed(2)} 分钟`);
       logger.info(`⏰ 完成时间: ${new Date().toLocaleString('zh-CN')}`);
@@ -178,11 +193,11 @@ class SmartScheduler {
       }
 
     } catch (error) {
-      logger.error('💥 任务序列执行失败:', {
+      logger.error('💥 任务序列执行中断:', {
         error: error.message,
         stack: error.stack
       });
-      
+
       // 立即执行模式下出错也退出进程
       if (this.immediateMode) {
         logger.error('🔴 立即执行模式出错，退出进程');
@@ -256,7 +271,7 @@ class SmartScheduler {
 // 添加命令行使用说明
 if (require.main === module) {
   const scheduler = new SmartScheduler();
-  
+
   // 显示帮助信息
   if (process.argv.includes('--help') || process.argv.includes('-h')) {
     console.log(`
